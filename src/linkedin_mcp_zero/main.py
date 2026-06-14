@@ -73,6 +73,11 @@ def cli() -> None:
 
     app = create_app(settings)
     if settings.transport == "streamable-http":
-        app.run(transport="streamable-http", host=settings.host, port=settings.port)
+        app.run(
+            transport="streamable-http",
+            host=settings.host,
+            port=settings.port,
+            show_banner=False,
+        )
     else:
-        app.run(transport="stdio")
+        app.run(transport="stdio", show_banner=False)
