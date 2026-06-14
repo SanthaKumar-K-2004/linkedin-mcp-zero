@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,15 +23,7 @@ class InstallResult:
 
 
 SERVER_NAME = "linkedin-zero"
-PYPI_SERVER_CONFIG = {"command": "uvx", "args": ["mcp-server-linkedin-zero"]}
-GITHUB_SERVER_CONFIG = {
-    "command": "uvx",
-    "args": [
-        "--from",
-        "git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero",
-        "mcp-server-linkedin-zero",
-    ],
-}
+GITHUB_URL = "git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero"
 
 
 def config_path(client: ClientName, cwd: Path | None = None) -> Path:
@@ -76,9 +69,34 @@ def preview_config(source: PackageSource = "pypi") -> dict[str, Any]:
 
 
 def server_config_for(source: PackageSource = "pypi") -> dict[str, Any]:
+    command = shutil.which("uvx") or "uvx"
+    env = {
+        "PATH": _merged_path(command),
+        "HOME": str(Path.home()),
+    }
     if source == "github":
-        return GITHUB_SERVER_CONFIG
-    return PYPI_SERVER_CONFIG
+        return {
+            "command": command,
+            "args": ["--from", GITHUB_URL, "mcp-server-linkedin-zero"],
+            "env": env,
+        }
+    return {"command": command, "args": ["mcp-server-linkedin-zero"], "env": env}
+
+
+def _merged_path(command: str) -> str:
+    paths = [str(Path(command).parent)] if "/" in command else []
+    paths.extend(
+        [
+            str(Path.home() / ".local" / "bin"),
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ]
+    )
+    existing = os.environ.get("PATH", "")
+    paths.extend(part for part in existing.split(":") if part)
+    deduped = list(dict.fromkeys(paths))
+    return ":".join(deduped)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
