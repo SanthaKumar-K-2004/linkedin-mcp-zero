@@ -68,6 +68,22 @@ def test_installer_preserves_existing_servers(tmp_path: Path) -> None:
     assert "SanthaKumar-K-2004/linkedin-mcp-zero" in text
 
 
+def test_installer_recovers_from_latest_valid_backup(tmp_path: Path) -> None:
+    config = tmp_path / "claude.json"
+    config.write_text('{"mcpServers":{"broken":', encoding="utf-8")
+    backup = tmp_path / "claude.json.20260614212846.bak"
+    backup.write_text(
+        '{"mcpServers":{"other":{"command":"node","args":["server.js"]}}}\n',
+        encoding="utf-8",
+    )
+    result = install_client_config("claude-desktop", path=str(config))
+    data = config.read_text(encoding="utf-8")
+    assert result.changed is True
+    assert '"other"' in data
+    assert '"linkedin-zero"' in data
+    assert list(tmp_path.glob("claude.json.invalid.*.bak"))
+
+
 def test_print_config_preview() -> None:
     config = preview_config()
     assert config["mcpServers"]["linkedin-zero"]["command"].endswith("uvx")

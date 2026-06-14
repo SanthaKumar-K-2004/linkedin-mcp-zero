@@ -105,10 +105,33 @@ def _load_json(path: Path) -> dict[str, Any]:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
         return {}
-    data = json.loads(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        corrupt = path.with_suffix(f"{path.suffix}.invalid.{datetime.now():%Y%m%d%H%M%S}.bak")
+        shutil.copy2(path, corrupt)
+        recovered = _load_latest_valid_backup(path)
+        if recovered is None:
+            raise ValueError(
+                f"Config JSON is invalid at {path}: {exc}. "
+                f"A copy was saved to {corrupt}. Fix the JSON and rerun."
+            ) from exc
+        return recovered
     if not isinstance(data, dict):
         raise ValueError("Existing config root must be a JSON object.")
     return data
+
+
+def _load_latest_valid_backup(path: Path) -> dict[str, Any] | None:
+    backups = sorted(path.parent.glob(f"{path.name}*.bak"), key=lambda item: item.stat().st_mtime)
+    for backup in reversed(backups):
+        try:
+            data = json.loads(backup.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
 
 
 def _backup(path: Path) -> str:
