@@ -1,51 +1,63 @@
-# LinkedIn MCP Zero
-
-Zero-risk LinkedIn job intelligence for AI agents.
-
-Public jobs, resume matching, alerts, exports, and optional read-only browser
-tools in one MCP server. Built for Claude Code, Claude Desktop, Cursor, and any
-MCP-compatible client.
+<div align="center">
 
 ```text
-32 tools | public-first | no Docker required | low-RAM friendly | FastMCP
+██╗     ██╗███╗   ██╗██╗  ██╗███████╗██████╗ ██╗███╗   ██╗
+██║     ██║████╗  ██║██║ ██╔╝██╔════╝██╔══██╗██║████╗  ██║
+██║     ██║██╔██╗ ██║█████╔╝ █████╗  ██║  ██║██║██╔██╗ ██║
+██║     ██║██║╚██╗██║██╔═██╗ ██╔══╝  ██║  ██║██║██║╚██╗██║
+███████╗██║██║ ╚████║██║  ██╗███████╗██████╔╝██║██║ ╚████║
+╚══════╝╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚══════╝╚═════╝ ╚═╝╚═╝  ╚═══╝
+             MCP ZERO - public-first LinkedIn intelligence
 ```
 
-## What It Does
+# LinkedIn MCP Zero
 
-LinkedIn MCP Zero gives AI agents practical LinkedIn intelligence without making
-dangerous write actions:
+**32 MCP tools for jobs, resumes, matching, alerts, exports, and optional read-only browser intelligence.**
 
-- Search public LinkedIn jobs without login.
-- Fetch public job details, salary, skills, company, and posting metadata.
-- Search multiple job boards through optional JobSpy.
-- Parse resumes locally from TXT, MD, DOCX, and optional PDF.
-- Match jobs to resumes with local scoring.
-- Save job alerts in local SQLite.
-- Export jobs to CSV or JSON.
-- Use your real Chrome through CDP for optional read-only profile/feed/inbox tools.
-- Report system health, RAM, disk, Python, Chrome, CDP, and optional packages.
+No Docker required · Public-first · Low-RAM friendly · FastMCP · PyPI published
 
-## Quick Start
+[![PyPI](https://img.shields.io/pypi/v/mcp-server-linkedin-zero?color=0A66C2)](https://pypi.org/project/mcp-server-linkedin-zero/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-stdio%20%7C%20http-purple)](https://modelcontextprotocol.io/)
 
-Use from PyPI:
+</div>
+
+## The Promise
+
+LinkedIn MCP Zero gives AI agents useful LinkedIn intelligence while staying
+honest about risk:
+
+| Principle | What it means |
+|---|---|
+| Public-first | Job search/details use public LinkedIn guest endpoints. No account required. |
+| Read-only | No automated posting, applying, connecting, or messaging. |
+| Local by default | Resume parsing, alerts, matching, exports, and state live on your machine. |
+| Lazy browser | Chrome/CDP tools load only when called, then auto-unload after idle time. |
+| Low-spec friendly | The server detects RAM/disk and recommends `full`, `balanced`, or `lean`. |
+| Easy install | Claude Code, Claude Desktop, Cursor, and custom MCP clients work with one command. |
+
+## Install In 10 Seconds
+
+Check your system:
 
 ```bash
 uvx mcp-server-linkedin-zero --doctor
 ```
 
-Use directly from GitHub if you want the latest source version:
+Run as an MCP server:
+
+```bash
+uvx mcp-server-linkedin-zero
+```
+
+Use the latest GitHub source instead of PyPI:
 
 ```bash
 uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
 ```
 
-Inside a local clone:
-
-```bash
-uv run linkedin-mcp-zero --doctor
-```
-
-## One-Line MCP Install
+## One-Line Agent Setup
 
 Claude Code:
 
@@ -65,162 +77,239 @@ Cursor, run inside the project where you want `.cursor/mcp.json`:
 uvx mcp-server-linkedin-zero --install-client cursor
 ```
 
-The installer safely merges only this entry:
+Custom MCP clients:
+
+```bash
+uvx mcp-server-linkedin-zero
+```
+
+Streamable HTTP:
+
+```bash
+uvx mcp-server-linkedin-zero --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+GitHub-source agent setup:
+
+```bash
+claude mcp add linkedin-zero -- uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero
+```
+
+## Safe Auto Config
+
+The installer does not overwrite your whole MCP config. It:
+
+- Finds the right config path for Claude Desktop or Cursor.
+- Creates missing folders.
+- Reads existing JSON.
+- Preserves every other MCP server.
+- Adds or updates only `linkedin-zero`.
+- Creates a timestamped `.bak` backup before saving.
+- Writes JSON atomically.
+
+Manual config:
 
 ```json
 {
   "mcpServers": {
     "linkedin-zero": {
       "command": "uvx",
-      "args": [
-        "mcp-server-linkedin-zero"
-      ]
+      "args": ["mcp-server-linkedin-zero"]
     }
   }
 }
 ```
 
-It preserves existing MCP servers and writes a timestamped backup before saving.
+Print the config without editing files:
 
-## Platform Support
+```bash
+uvx mcp-server-linkedin-zero --print-config
+```
 
-| Platform | Setup |
+## Platform Matrix
+
+| Platform | Command |
 |---|---|
 | Claude Code | `claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero` |
 | Claude Desktop | `uvx mcp-server-linkedin-zero --install-client claude-desktop` |
 | Cursor | `uvx mcp-server-linkedin-zero --install-client cursor` |
-| Custom MCP client | stdio command: `uvx mcp-server-linkedin-zero` |
-| HTTP clients | `uv run linkedin-mcp-zero --transport streamable-http --port 8000` |
+| Custom stdio client | `uvx mcp-server-linkedin-zero` |
+| HTTP client | `uvx mcp-server-linkedin-zero --transport streamable-http --port 8000` |
 | Docker | Not required |
+| Low-spec laptop | Supported, browser tools stay lazy |
 
-## Smart System Detection
-
-Run:
+## What `--doctor` Checks
 
 ```bash
-mcp-server-linkedin-zero --doctor
+uvx mcp-server-linkedin-zero --doctor
 ```
 
-The server detects:
+It detects:
 
 - OS and Python version.
 - Python executable.
 - CPU count.
 - Total and available RAM.
 - Free disk.
-- Data directory.
+- Local data directory.
 - Chrome, Chromium, Brave, or Edge.
 - CDP URL.
 - Docker/display state.
 - Optional packages: JobSpy, PyMuPDF, Playwright, Patchright.
-- Recommended runtime mode: `full`, `balanced`, or `lean`.
+- Recommended mode: `full`, `balanced`, or `lean`.
 
-Low-spec systems still work. The server does not reduce result quality. It only
-keeps expensive engines lazy:
+Example:
 
-- Engine 1 public job tools stay lightweight.
-- Local resume/storage/export tools stay lightweight.
-- Browser tools load only when called.
-- Browser connection unloads after idle time.
-- Optional extras are installed only when users ask for those features.
+```json
+{
+  "python": "3.12.13",
+  "cpu_count": 8,
+  "ram_total_mb": 7135,
+  "ram_available_mb": 2539,
+  "chrome": "/usr/bin/google-chrome",
+  "mode": "full",
+  "notes": ["Browser tools need `uv sync --extra browser`."]
+}
+```
 
 ## Tool Inventory
 
-| # | Tool | Engine | Risk | Status |
+| # | Tool | Engine | Risk | What it does |
 |---|---|---|---|---|
-| 1 | `search_jobs` | E1 | Zero | Working public LinkedIn guest search |
-| 2 | `search_jobs_multi` | E1 | Zero | Optional JobSpy |
-| 3 | `get_job_details` | E1 | Zero | Working public job details |
-| 4 | `get_company_jobs` | E1 | Zero | Working public job inference |
-| 5 | `get_company_profile` | E1 | Zero | Working public job-signal inference |
-| 6 | `search_companies` | E1 | Zero | Working public job-signal inference |
-| 7 | `get_job_salary` | E1 | Zero | Working from public job details |
-| 8 | `get_job_trends` | E1 | Zero | Working aggregation |
-| 9 | `get_industry_insights` | E1 | Zero | Working aggregation |
-| 10 | `search_jobs_advanced` | E1 | Zero | Working public search |
-| 11 | `analyze_resume` | RE | Zero | TXT, MD, DOCX; optional PDF |
-| 12 | `get_resume_insights` | RE | Zero | Working local keyword insights |
-| 13 | `match_jobs_to_resume` | ME | Zero | Working local scoring |
-| 14 | `compare_jobs` | ME | Zero | Working comparison |
+| 1 | `search_jobs` | E1 | Zero | Search LinkedIn jobs |
+| 2 | `search_jobs_multi` | E1 | Zero | Search LinkedIn, Indeed, Google, ZipRecruiter, Glassdoor |
+| 3 | `get_job_details` | E1 | Zero | Full public job details |
+| 4 | `get_company_jobs` | E1 | Zero | Public jobs at a company |
+| 5 | `get_company_profile` | E1 | Zero | Company signals from public jobs |
+| 6 | `search_companies` | E1 | Zero | Company search from job signals |
+| 7 | `get_job_salary` | E1 | Zero | Salary extraction |
+| 8 | `get_job_trends` | E1 | Zero | Role/location trend summary |
+| 9 | `get_industry_insights` | E1 | Zero | Industry job insights |
+| 10 | `search_jobs_advanced` | E1 | Zero | Search with filters |
+| 11 | `analyze_resume` | RE | Zero | Parse TXT, MD, DOCX, optional PDF |
+| 12 | `get_resume_insights` | RE | Zero | Skill gaps and suggestions |
+| 13 | `match_jobs_to_resume` | ME | Zero | Rank jobs against resume |
+| 14 | `compare_jobs` | ME | Zero | Compare 2-5 jobs |
 | 15 | `export_jobs` | LO | Zero | CSV/JSON export |
-| 16 | `save_job_alert` | ST | Zero | SQLite storage |
-| 17 | `get_saved_alerts` | ST | Zero | SQLite storage |
-| 18 | `check_saved_alerts` | E1+ST | Zero | Public search + SQLite |
-| 19 | `get_my_profile` | E2 | Minimal | Chrome CDP read-only |
-| 20 | `get_person_profile` | E2 | Minimal | Chrome CDP read-only |
-| 21 | `search_people` | E2 | Minimal | Chrome CDP read-only |
-| 22 | `get_my_connections` | E2 | Minimal | Chrome CDP read-only |
-| 23 | `get_inbox` | E2 | Minimal | Chrome CDP read-only |
-| 24 | `get_conversation` | E2 | Minimal | Chrome CDP read-only |
-| 25 | `get_feed` | E2 | Minimal | Chrome CDP read-only |
-| 26 | `get_notifications` | E2 | Minimal | Chrome CDP read-only |
-| 27 | `get_sidebar_profiles` | E2 | Minimal | Chrome CDP read-only |
-| 28 | `get_company_employees` | E2 | Low | Chrome CDP read-only |
-| 29 | `check_session` | E2 | Minimal | CDP readiness check |
-| 30 | `get_engine_status` | System | Zero | Working |
-| 31 | `get_help` | System | Zero | Working |
+| 16 | `save_job_alert` | ST | Zero | Save recurring search |
+| 17 | `get_saved_alerts` | ST | Zero | List alerts |
+| 18 | `check_saved_alerts` | E1+ST | Zero | Run alerts and find new matches |
+| 19 | `get_my_profile` | E2 | Minimal | Read your profile through Chrome CDP |
+| 20 | `get_person_profile` | E2 | Minimal | Read a public/person profile |
+| 21 | `search_people` | E2 | Minimal | LinkedIn people search |
+| 22 | `get_my_connections` | E2 | Minimal | Read connection list |
+| 23 | `get_inbox` | E2 | Minimal | Read inbox list |
+| 24 | `get_conversation` | E2 | Minimal | Read one thread |
+| 25 | `get_feed` | E2 | Minimal | Read home feed |
+| 26 | `get_notifications` | E2 | Minimal | Read notifications |
+| 27 | `get_sidebar_profiles` | E2 | Minimal | Read sidebar suggestions |
+| 28 | `get_company_employees` | E2 | Low | Read company people page |
+| 29 | `check_session` | E2 | Minimal | Check Chrome/CDP readiness |
+| 30 | `get_engine_status` | System | Zero | Runtime and engine status |
+| 31 | `get_help` | System | Zero | Tool documentation |
 | 32 | `get_profile_voyager` | E3 | Low | Gated off by default |
 
-## Optional Full-Power Mode
+## Architecture
 
-Inside a local clone:
-
-```bash
-uv sync --extra multi --extra pdf --extra browser
+```text
+Claude / Cursor / Custom Agent
+        |
+        | MCP stdio or Streamable HTTP
+        v
+┌──────────────────────────────────────────────────────────────┐
+│ LinkedIn MCP Zero                                            │
+│                                                              │
+│  FastMCP tool layer  ->  32 compact tools                    │
+│          |                                                   │
+│          +-- E1 Public APIs      LinkedIn guest jobs         │
+│          +-- Resume Engine       local TXT/MD/DOCX/PDF       │
+│          +-- Matching Engine     local scoring               │
+│          +-- Storage             SQLite + exports            │
+│          +-- E2 Browser          real Chrome via CDP         │
+│          +-- E3 Voyager          off by default              │
+│                                                              │
+│  Shared: cache, rate limit, config, autodetect, logging      │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-Extras:
+## Hidden Gems Wired
 
-- `multi`: JobSpy multi-board search.
-- `pdf`: PyMuPDF PDF resume parsing.
-- `browser`: Playwright CDP and Patchright fallback support.
+| Hidden gem | Used for |
+|---|---|
+| LinkedIn Guest Jobs API | Zero-login public job search/details |
+| JobSpy | Optional 5-board job search |
+| JSON-LD Schema.org | Stable salary, skills, dates, job detail parsing |
+| FastMCP | MCP server, schemas, stdio/HTTP transports |
+| Chrome DevTools Protocol | Real Chrome read-only profile/feed/inbox tools |
+| Patchright | Opt-in fallback when CDP is unavailable |
+| python-docx + PyMuPDF | Local resume parsing |
+| pydantic-settings | Type-safe environment config |
+| structlog | Structured logs |
 
-Browser tools:
+## Full-Power Local Mode
+
+Clone and install everything:
+
+```bash
+git clone https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero.git
+cd linkedin-mcp-zero
+uv sync --extra dev --extra multi --extra pdf --extra browser
+```
+
+Run checks:
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run linkedin-mcp-zero --doctor
+```
+
+Run server:
+
+```bash
+uv run linkedin-mcp-zero
+```
+
+## Browser Tools
+
+Start Chrome with CDP:
 
 ```bash
 google-chrome --remote-debugging-port=9222
 ```
 
-Then call `check_session` from your MCP client.
-
-## How It Works
+Then call:
 
 ```text
-AI client
-  |
-  | MCP stdio / Streamable HTTP
-  v
-FastMCP server
-  |
-  +-- Engine 1: public LinkedIn jobs API, no login
-  +-- Resume engine: local parsing
-  +-- Matching engine: local scoring
-  +-- Storage: local SQLite and exports
-  +-- Engine 2: real Chrome via CDP, read-only
-  +-- Engine 3: Voyager, gated off by default
+check_session
+get_my_profile
+search_people
+get_feed
+get_inbox
 ```
 
-Hidden gems wired:
-
-- LinkedIn Guest Jobs API.
-- JobSpy optional multi-board search.
-- JSON-LD Schema.org parsing.
-- FastMCP.
-- Chrome DevTools Protocol.
-- Patchright opt-in fallback.
-- python-docx and optional PyMuPDF.
-- pydantic-settings.
-- structlog.
-
-## Development
+Opt-in Patchright fallback:
 
 ```bash
-git clone https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero.git
-cd linkedin-mcp-zero
-uv sync --extra dev
-uv run pytest
-uv run ruff check .
+LINKEDIN_MCP_ENABLE_PATCHRIGHT_FALLBACK=true uvx mcp-server-linkedin-zero
 ```
+
+## Low-Spec Mode
+
+No Docker. No always-on browser. No heavy services.
+
+If RAM or disk is low, the server still works:
+
+- Public job tools keep running.
+- Resume tools stay local.
+- Alerts use SQLite.
+- Browser tools wait until called.
+- Browser auto-unloads after idle time.
+- Optional extras are skipped unless installed.
+
+Quality is not reduced; only engine loading is smarter.
+
+## Development And Release
 
 Build:
 
@@ -228,18 +317,33 @@ Build:
 uv build
 ```
 
-Publish to PyPI, after configuring credentials:
+Publish a new version:
 
 ```bash
 uv publish
 ```
 
-Published on PyPI:
+Run from PyPI:
 
 ```bash
 uvx mcp-server-linkedin-zero
 ```
 
+Run from GitHub source:
+
+```bash
+uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero
+```
+
+## Safety
+
+This project intentionally avoids automated write actions. It does not apply to
+jobs, send messages, create posts, connect with people, or modify your LinkedIn
+account. Browser tools are read-only and require your own Chrome session.
+
+Voyager is gated off by default because it is riskier than public APIs or real
+browser reading.
+
 ## License
 
-Apache 2.0.
+Apache 2.0. See [LICENSE](LICENSE).
