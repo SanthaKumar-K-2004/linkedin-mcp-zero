@@ -27,16 +27,16 @@ dangerous write actions:
 
 ## Quick Start
 
-Use directly from GitHub before PyPI release:
-
-```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
-```
-
-After PyPI release:
+Use from PyPI:
 
 ```bash
 uvx mcp-server-linkedin-zero --doctor
+```
+
+Use directly from GitHub if you want the latest source version:
+
+```bash
+uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
 ```
 
 Inside a local clone:
@@ -50,19 +50,19 @@ uv run linkedin-mcp-zero --doctor
 Claude Code:
 
 ```bash
-claude mcp add linkedin-zero -- uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero
+claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero
 ```
 
 Claude Desktop:
 
 ```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --install-client claude-desktop --package-source github
+uvx mcp-server-linkedin-zero --install-client claude-desktop
 ```
 
 Cursor, run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --install-client cursor --package-source github
+uvx mcp-server-linkedin-zero --install-client cursor
 ```
 
 The installer safely merges only this entry:
@@ -73,8 +73,6 @@ The installer safely merges only this entry:
     "linkedin-zero": {
       "command": "uvx",
       "args": [
-        "--from",
-        "git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero",
         "mcp-server-linkedin-zero"
       ]
     }
@@ -88,10 +86,10 @@ It preserves existing MCP servers and writes a timestamped backup before saving.
 
 | Platform | Setup |
 |---|---|
-| Claude Code | `claude mcp add linkedin-zero -- uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero` |
-| Claude Desktop | `--install-client claude-desktop --package-source github` |
-| Cursor | `--install-client cursor --package-source github` |
-| Custom MCP client | stdio command: `uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero` |
+| Claude Code | `claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero` |
+| Claude Desktop | `uvx mcp-server-linkedin-zero --install-client claude-desktop` |
+| Cursor | `uvx mcp-server-linkedin-zero --install-client cursor` |
+| Custom MCP client | stdio command: `uvx mcp-server-linkedin-zero` |
 | HTTP clients | `uv run linkedin-mcp-zero --transport streamable-http --port 8000` |
 | Docker | Not required |
 
@@ -236,7 +234,7 @@ Publish to PyPI, after configuring credentials:
 uv publish
 ```
 
-After PyPI release, users can use the shorter command:
+Published on PyPI:
 
 ```bash
 uvx mcp-server-linkedin-zero

@@ -2,28 +2,28 @@
 
 ## Fastest Start
 
-Before PyPI release, run from GitHub:
-
-```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
-```
-
-After PyPI release:
+Run from PyPI:
 
 ```bash
 uvx mcp-server-linkedin-zero --doctor
 ```
 
+GitHub source fallback:
+
+```bash
+uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
+```
+
 ## Claude Code
 
 ```bash
-claude mcp add linkedin-zero -- uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero
+claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero
 ```
 
 ## Claude Desktop
 
 ```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --install-client claude-desktop --package-source github
+uvx mcp-server-linkedin-zero --install-client claude-desktop
 ```
 
 ## Cursor
@@ -31,7 +31,7 @@ uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-serve
 Run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --install-client cursor --package-source github
+uvx mcp-server-linkedin-zero --install-client cursor
 ```
 
 The installer preserves existing MCP servers and creates a `.bak` backup.
@@ -44,8 +44,6 @@ The installer preserves existing MCP servers and creates a `.bak` backup.
     "linkedin-zero": {
       "command": "uvx",
       "args": [
-        "--from",
-        "git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero",
         "mcp-server-linkedin-zero"
       ]
     }
