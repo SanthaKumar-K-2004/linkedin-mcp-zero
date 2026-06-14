@@ -104,7 +104,11 @@ The installer does not overwrite your whole MCP config. It:
 - Reads existing JSON.
 - Preserves every other MCP server.
 - Adds or updates only `linkedin-zero`.
+- Uses the absolute `uvx` path so GUI apps do not fail on missing shell `PATH`.
+- Adds `HOME` and a safe `PATH` to the MCP server environment.
 - Creates a timestamped `.bak` backup before saving.
+- If the current config JSON is broken, saves it as `.invalid.<timestamp>.bak`.
+- Recovers from the latest valid backup when one exists.
 - Writes JSON atomically.
 
 Manual config:
@@ -321,6 +325,12 @@ Publish a new version:
 
 ```bash
 uv publish
+```
+
+Publish the current `0.1.2` installer-recovery patch:
+
+```bash
+UV_PUBLISH_TOKEN="pypi-YOUR_NEW_TOKEN" uv publish dist/mcp_server_linkedin_zero-0.1.2*
 ```
 
 Run from PyPI:

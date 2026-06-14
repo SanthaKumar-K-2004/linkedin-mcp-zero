@@ -34,7 +34,14 @@ Run inside the project where you want `.cursor/mcp.json`:
 uvx mcp-server-linkedin-zero --install-client cursor
 ```
 
-The installer preserves existing MCP servers and creates a `.bak` backup.
+The installer:
+
+- Preserves existing MCP servers.
+- Uses the absolute `uvx` path for GUI app reliability.
+- Adds `HOME` and a safe `PATH`.
+- Creates a `.bak` backup before writing.
+- If JSON is broken, saves it as `.invalid.<timestamp>.bak`.
+- Recovers from the latest valid backup when possible.
 
 ## Manual Config
 
@@ -75,3 +82,13 @@ Then call `check_session` from your MCP client.
 Docker is not required. Engine 1 public tools work on low-spec systems. Browser
 tools are lazy and unload after idle time. Optional extras are installed only
 when users need those features.
+
+## Update Existing Installs
+
+Refresh and reinstall the MCP config:
+
+```bash
+uvx --refresh-package mcp-server-linkedin-zero --from mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop
+```
+
+Then fully restart Claude Desktop.
