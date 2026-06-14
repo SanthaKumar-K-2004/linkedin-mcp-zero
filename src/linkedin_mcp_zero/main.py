@@ -6,7 +6,7 @@ import json
 from rich.console import Console
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
-from linkedin_mcp_zero.config.install import install_client_config, preview_config
+from linkedin_mcp_zero.config.install import PackageExtra, install_client_config, preview_config
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.server.app import create_app
 from linkedin_mcp_zero.utils.logging import configure_logging
@@ -31,6 +31,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["pypi", "github"],
         default="pypi",
         help="Use PyPI package command or GitHub repo command in installed MCP config",
+    )
+    parser.add_argument(
+        "--with-extra",
+        action="append",
+        choices=["browser", "multi", "pdf"],
+        default=[],
+        help="Include an optional package extra in installed/printed MCP config",
     )
     parser.add_argument(
         "--config-path",
@@ -59,14 +66,16 @@ def cli() -> None:
     if args.doctor:
         Console().print_json(json.dumps(detect_runtime(settings.data_dir), default=str))
         return
+    extras: list[PackageExtra] = args.with_extra
     if args.print_config:
-        Console().print_json(json.dumps(preview_config(args.package_source)))
+        Console().print_json(json.dumps(preview_config(args.package_source, extras=extras)))
         return
     if args.install_client:
         result = install_client_config(
             args.install_client,
             path=args.config_path,
             source=args.package_source,
+            extras=extras,
         )
         Console().print_json(json.dumps(result.__dict__, default=str))
         return

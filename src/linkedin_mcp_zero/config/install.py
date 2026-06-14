@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 ClientName = Literal["claude-desktop", "cursor"]
 PackageSource = Literal["pypi", "github"]
+PackageExtra = Literal["browser", "multi", "pdf"]
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ def install_client_config(
     path: str | None = None,
     cwd: Path | None = None,
     source: PackageSource = "pypi",
+    extras: list[PackageExtra] | None = None,
 ) -> InstallResult:
     target = Path(path).expanduser() if path else config_path(client, cwd)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -53,7 +55,7 @@ def install_client_config(
     if not isinstance(servers, dict):
         raise ValueError("Existing config has non-object `mcpServers`; refusing to overwrite.")
 
-    server_config = server_config_for(source)
+    server_config = server_config_for(source, extras=extras)
     old = servers.get(SERVER_NAME)
     if old == server_config:
         return InstallResult(client, str(target), False, None, SERVER_NAME)
@@ -64,23 +66,56 @@ def install_client_config(
     return InstallResult(client, str(target), True, backup, SERVER_NAME)
 
 
-def preview_config(source: PackageSource = "pypi") -> dict[str, Any]:
-    return {"mcpServers": {SERVER_NAME: server_config_for(source)}}
+def preview_config(
+    source: PackageSource = "pypi",
+    extras: list[PackageExtra] | None = None,
+) -> dict[str, Any]:
+    return {"mcpServers": {SERVER_NAME: server_config_for(source, extras=extras)}}
 
 
-def server_config_for(source: PackageSource = "pypi") -> dict[str, Any]:
+def server_config_for(
+    source: PackageSource = "pypi",
+    extras: list[PackageExtra] | None = None,
+) -> dict[str, Any]:
     command = shutil.which("uvx") or "uvx"
     env = {
         "PATH": _merged_path(command),
         "HOME": str(Path.home()),
     }
+    package = _package_requirement(extras)
     if source == "github":
         return {
             "command": command,
-            "args": ["--from", GITHUB_URL, "mcp-server-linkedin-zero"],
+            "args": ["--from", _github_requirement(extras), "mcp-server-linkedin-zero"],
+            "env": env,
+        }
+    if extras:
+        return {
+            "command": command,
+            "args": ["--from", package, "mcp-server-linkedin-zero"],
             "env": env,
         }
     return {"command": command, "args": ["mcp-server-linkedin-zero"], "env": env}
+
+
+def _package_requirement(extras: list[PackageExtra] | None = None) -> str:
+    clean = _clean_extras(extras)
+    if not clean:
+        return "mcp-server-linkedin-zero"
+    return f"mcp-server-linkedin-zero[{','.join(clean)}]"
+
+
+def _github_requirement(extras: list[PackageExtra] | None = None) -> str:
+    clean = _clean_extras(extras)
+    if not clean:
+        return GITHUB_URL
+    return f"mcp-server-linkedin-zero[{','.join(clean)}] @ {GITHUB_URL}"
+
+
+def _clean_extras(extras: list[PackageExtra] | None = None) -> list[str]:
+    allowed = {"browser", "multi", "pdf"}
+    values = sorted({extra for extra in extras or [] if extra in allowed})
+    return values
 
 
 def _merged_path(command: str) -> str:

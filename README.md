@@ -71,6 +71,12 @@ Claude Desktop:
 uvx mcp-server-linkedin-zero --install-client claude-desktop
 ```
 
+Claude Desktop with browser/profile/feed tools enabled:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+```
+
 Cursor, run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
@@ -128,6 +134,12 @@ Print the config without editing files:
 
 ```bash
 uvx mcp-server-linkedin-zero --print-config
+```
+
+Print a browser-enabled config:
+
+```bash
+uvx mcp-server-linkedin-zero --print-config --with-extra browser
 ```
 
 ## Platform Matrix
@@ -276,6 +288,23 @@ uv run linkedin-mcp-zero
 
 ## Browser Tools
 
+Important: `uvx` runs this MCP in an isolated Python environment. If Playwright is
+installed globally, in Node, or in another virtual environment, this MCP will not
+see it. Browser support must be installed in the MCP runtime with the `browser`
+extra.
+
+Install Claude Desktop config with browser extra:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+```
+
+Install Cursor config with browser extra:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client cursor --with-extra browser
+```
+
 Start Chrome with CDP:
 
 ```bash
@@ -296,6 +325,35 @@ Opt-in Patchright fallback:
 
 ```bash
 LINKEDIN_MCP_ENABLE_PATCHRIGHT_FALLBACK=true uvx mcp-server-linkedin-zero
+```
+
+## Optional Extras Guide
+
+| Feature | Why status may show unavailable | Fix |
+|---|---|---|
+| Browser tools | Python Playwright is not installed inside `uvx` MCP runtime | `--with-extra browser` |
+| Multi-board search | JobSpy is not installed inside `uvx` MCP runtime | `--with-extra multi` |
+| PDF resume parsing | PyMuPDF is not installed inside `uvx` MCP runtime | `--with-extra pdf` |
+
+Examples:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra multi
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra pdf
+```
+
+Combine extras:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser --with-extra multi --with-extra pdf
+```
+
+For a local clone:
+
+```bash
+uv sync --extra browser --extra multi --extra pdf
+uv run linkedin-mcp-zero --install-client claude-desktop
 ```
 
 ## Low-Spec Mode

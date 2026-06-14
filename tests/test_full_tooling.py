@@ -89,6 +89,12 @@ def test_print_config_preview() -> None:
     assert config["mcpServers"]["linkedin-zero"]["command"].endswith("uvx")
     github = preview_config("github")
     assert "--from" in github["mcpServers"]["linkedin-zero"]["args"]
+    browser = preview_config(extras=["browser"])
+    assert browser["mcpServers"]["linkedin-zero"]["args"] == [
+        "--from",
+        "mcp-server-linkedin-zero[browser]",
+        "mcp-server-linkedin-zero",
+    ]
 
 
 @pytest.mark.asyncio

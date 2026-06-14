@@ -26,12 +26,24 @@ claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero
 uvx mcp-server-linkedin-zero --install-client claude-desktop
 ```
 
+With browser/profile/feed tools:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+```
+
 ## Cursor
 
 Run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
 uvx mcp-server-linkedin-zero --install-client cursor
+```
+
+With browser/profile/feed tools:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client cursor --with-extra browser
 ```
 
 The installer:
@@ -69,6 +81,14 @@ uv run linkedin-mcp-zero
 
 ## Browser Tools
 
+`uvx` is isolated. Global Python Playwright, Node Playwright, and another
+project's virtualenv Playwright do not count. Install the browser extra into the
+MCP runtime:
+
+```bash
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+```
+
 Start Chrome with CDP:
 
 ```bash
@@ -76,6 +96,22 @@ google-chrome --remote-debugging-port=9222
 ```
 
 Then call `check_session` from your MCP client.
+
+## Optional Extras
+
+```bash
+# Browser/CDP tools
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+
+# Multi-board search through JobSpy
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra multi
+
+# PDF resume parsing through PyMuPDF
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra pdf
+
+# Everything
+uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser --with-extra multi --with-extra pdf
+```
 
 ## Low-Spec / No Docker
 
