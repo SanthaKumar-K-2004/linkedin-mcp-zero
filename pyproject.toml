@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-server-linkedin-zero"
+version = "0.1.0"
+description = "Token-optimized, zero-risk LinkedIn jobs MCP server."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+authors = [{ name = "Santhakumar K" }]
+dependencies = [
+  "beautifulsoup4>=4.12",
+  "fastmcp>=2.0",
+  "httpx>=0.28",
+  "lxml>=5.3",
+  "platformdirs>=4.3",
+  "pydantic>=2.10",
+  "pydantic-settings>=2.7",
+  "python-docx>=1.1",
+  "rich>=13.9",
+  "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.8",
+]
+multi = ["python-jobspy>=1.1.82"]
+pdf = ["pymupdf>=1.25"]
+browser = ["playwright>=1.49", "patchright>=1.49"]
+
+[project.scripts]
+linkedin-mcp-zero = "linkedin_mcp_zero.main:cli"
+mcp-server-linkedin-zero = "linkedin_mcp_zero.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/linkedin_mcp_zero"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
