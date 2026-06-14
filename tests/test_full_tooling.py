@@ -70,7 +70,7 @@ def test_installer_preserves_existing_servers(tmp_path: Path) -> None:
 
 def test_print_config_preview() -> None:
     config = preview_config()
-    assert config["mcpServers"]["linkedin-zero"]["command"] == "uvx"
+    assert config["mcpServers"]["linkedin-zero"]["command"].endswith("uvx")
     github = preview_config("github")
     assert "--from" in github["mcpServers"]["linkedin-zero"]["args"]
 

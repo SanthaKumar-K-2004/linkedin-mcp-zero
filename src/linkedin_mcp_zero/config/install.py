@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-import platform
 import os
+import platform
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
