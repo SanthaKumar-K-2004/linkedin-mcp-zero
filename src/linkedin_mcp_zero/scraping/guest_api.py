@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -96,7 +97,7 @@ def extract_job_id(value: str) -> str:
     return match.group(1)
 
 
-def parse_search_results(html: str) -> list[dict[str, object]]:
+def parse_search_results(html: str, now: datetime | None = None) -> list[dict[str, object]]:
     soup = BeautifulSoup(html, "lxml")
     cards = soup.select(".base-card, .job-search-card")
     results: list[dict[str, object]] = []
@@ -125,7 +126,7 @@ def parse_search_results(html: str) -> list[dict[str, object]]:
                     "co": company,
                     "loc": location,
                     "url": url.split("?")[0] if url else "",
-                    "age": relative_age(posted),
+                    "age": relative_age(posted, now),
                 }
             )
         )

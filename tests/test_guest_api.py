@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from linkedin_mcp_zero.scraping.guest_api import (
     extract_job_id,
     parse_job_detail,
@@ -48,7 +50,7 @@ def test_extract_job_id_from_url() -> None:
 
 
 def test_parse_search_results_compressed() -> None:
-    result = parse_search_results(SEARCH_HTML)
+    result = parse_search_results(SEARCH_HTML, now=datetime(2026, 6, 14, tzinfo=timezone.utc))
     assert result == [
         {
             "id": "3900000012",

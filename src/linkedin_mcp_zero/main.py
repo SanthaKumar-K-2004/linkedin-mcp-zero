@@ -6,7 +6,12 @@ import json
 from rich.console import Console
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
-from linkedin_mcp_zero.config.install import PackageExtra, install_client_config, preview_config
+from linkedin_mcp_zero.config.install import (
+    PackageExtra,
+    install_client_config,
+    preview_config,
+    verify_client_config,
+)
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.server.app import create_app
 from linkedin_mcp_zero.utils.logging import configure_logging
@@ -18,13 +23,27 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--log-level", default=None)
+    parser.add_argument("--json", action="store_true", dest="json_output", help="Print JSON output")
+    parser.add_argument("--enable-browser", action="store_true", help="Expose opt-in browser tools")
     parser.add_argument("--enable-voyager", action="store_true")
     parser.add_argument("--doctor", action="store_true", help="Print auto-detected runtime status")
     parser.add_argument(
         "--install-client",
-        choices=["claude-desktop", "cursor"],
+        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
         default=None,
         help="Safely merge this MCP into a client config",
+    )
+    parser.add_argument(
+        "--verify-client",
+        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
+        default=None,
+        help="Verify an installed MCP client config",
+    )
+    parser.add_argument(
+        "--client",
+        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
+        default="claude-desktop",
+        help="Client shape for --print-config",
     )
     parser.add_argument(
         "--package-source",
@@ -61,14 +80,29 @@ def cli() -> None:
         settings.log_level = args.log_level
     if args.enable_voyager:
         settings.enable_voyager = True
+    if args.enable_browser:
+        settings.enable_browser = True
 
     configure_logging(settings.log_level)
     if args.doctor:
-        Console().print_json(json.dumps(detect_runtime(settings.data_dir), default=str))
+        runtime = detect_runtime(settings.data_dir)
+        if args.json_output:
+            Console().print_json(json.dumps(runtime, default=str))
+        else:
+            _print_doctor(runtime)
         return
     extras: list[PackageExtra] = args.with_extra
     if args.print_config:
-        Console().print_json(json.dumps(preview_config(args.package_source, extras=extras)))
+        Console().print_json(
+            json.dumps(
+                preview_config(
+                    args.package_source,
+                    client=args.client,
+                    extras=extras,
+                    enable_browser=settings.enable_browser,
+                )
+            )
+        )
         return
     if args.install_client:
         result = install_client_config(
@@ -76,7 +110,12 @@ def cli() -> None:
             path=args.config_path,
             source=args.package_source,
             extras=extras,
+            enable_browser=settings.enable_browser,
         )
+        Console().print_json(json.dumps(result.__dict__, default=str))
+        return
+    if args.verify_client:
+        result = verify_client_config(args.verify_client, path=args.config_path)
         Console().print_json(json.dumps(result.__dict__, default=str))
         return
 
@@ -90,3 +129,33 @@ def cli() -> None:
         )
     else:
         app.run(transport="stdio", show_banner=False)
+
+
+def _print_doctor(runtime: dict[str, object]) -> None:
+    console = Console()
+    optional = runtime.get("optional", {})
+    notes = runtime.get("notes", [])
+    console.print("[bold]LinkedIn MCP Zero Doctor[/bold]")
+    console.print(f"OS: {runtime.get('os')} | Python: {runtime.get('python')}")
+    console.print(f"Executable: {runtime.get('executable')}")
+    console.print(
+        f"CPU: {runtime.get('cpu_count')} | RAM available: {runtime.get('ram_available_mb')} MB | "
+        f"Disk free: {runtime.get('disk_free_mb')} MB"
+    )
+    console.print(f"Data dir: {runtime.get('data_dir')}")
+    console.print(f"Chrome: {runtime.get('chrome') or 'not found'}")
+    console.print(f"CDP URL: {runtime.get('cdp_url')}")
+    console.print(f"Recommended mode: {runtime.get('mode')}")
+    if isinstance(optional, dict):
+        console.print("Optional packages:")
+        for name, available in optional.items():
+            console.print(f"  {'OK' if available else 'NO'} {name}")
+    if notes:
+        console.print("Notes:")
+        for note in notes:
+            console.print(f"  - {note}")
+    console.print(
+        'Browser extra fix: uvx --from "mcp-server-linkedin-zero[browser]" '
+        "mcp-server-linkedin-zero --doctor",
+        markup=False,
+    )

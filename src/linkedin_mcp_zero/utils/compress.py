@@ -39,7 +39,7 @@ def compact_location(location: str | None) -> str:
     return text
 
 
-def relative_age(date_text: str | None) -> str:
+def relative_age(date_text: str | None, now: datetime | None = None) -> str:
     text = clean_text(date_text)
     if not text:
         return ""
@@ -62,7 +62,8 @@ def relative_age(date_text: str | None) -> str:
         posted = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return text
-    delta = datetime.now(timezone.utc) - posted.astimezone(timezone.utc)
+    current = now or datetime.now(timezone.utc)
+    delta = current.astimezone(timezone.utc) - posted.astimezone(timezone.utc)
     if delta.days >= 30:
         return f"{delta.days // 30}mo"
     if delta.days >= 7:

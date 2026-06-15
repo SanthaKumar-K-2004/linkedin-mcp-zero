@@ -148,5 +148,5 @@ def _recommend_mode(
     if not optional["pymupdf"]:
         notes.append("PDF resume parsing needs `uv sync --extra pdf`.")
     if not notes:
-        notes.append("System looks ready for full zero-risk/local workflow.")
+        notes.append("System looks ready for local and public no-login workflow.")
     return mode, notes

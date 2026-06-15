@@ -2,34 +2,41 @@
 
 ## Fastest Start
 
-Run from PyPI:
+No Docker is required.
 
 ```bash
 uvx mcp-server-linkedin-zero --doctor
 ```
 
-GitHub source fallback:
+Run the MCP server directly:
 
 ```bash
-uvx --from git+https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero mcp-server-linkedin-zero --doctor
-```
-
-## Claude Code
-
-```bash
-claude mcp add linkedin-zero -- uvx mcp-server-linkedin-zero
+uvx mcp-server-linkedin-zero
 ```
 
 ## Claude Desktop
 
+Install safely into Claude Desktop:
+
 ```bash
-uvx mcp-server-linkedin-zero --install-client claude-desktop
+uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop
+uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --verify-client claude-desktop
 ```
 
-With browser/profile/feed tools:
+Then fully quit and reopen Claude Desktop.
+
+## Claude Code
+
+Recommended one-command setup:
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-code
+```
+
+Manual equivalent:
+
+```bash
+claude mcp add linkedin-zero -- uvx --from mcp-server-linkedin-zero mcp-server-linkedin-zero
 ```
 
 ## Cursor
@@ -38,64 +45,65 @@ Run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
 uvx mcp-server-linkedin-zero --install-client cursor
+uvx mcp-server-linkedin-zero --verify-client cursor
 ```
 
-With browser/profile/feed tools:
+## VS Code
+
+VS Code uses top-level `servers`, not `mcpServers`.
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client cursor --with-extra browser
+uvx mcp-server-linkedin-zero --install-client vscode
+uvx mcp-server-linkedin-zero --verify-client vscode
 ```
 
-The installer:
+## Browser Mode
 
-- Preserves existing MCP servers.
-- Uses the absolute `uvx` path for GUI app reliability.
-- Adds `HOME` and a safe `PATH`.
-- Creates a `.bak` backup before writing.
-- If JSON is broken, saves it as `.invalid.<timestamp>.bak`.
-- Recovers from the latest valid backup when possible.
-
-## Manual Config
-
-```json
-{
-  "mcpServers": {
-    "linkedin-zero": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-linkedin-zero"
-      ]
-    }
-  }
-}
-```
-
-## Full Power Local Mode
-
-Inside this repo:
-
-```bash
-uv sync --extra multi --extra pdf --extra browser
-uv run linkedin-mcp-zero
-```
-
-## Browser Tools
-
-`uvx` is isolated. Global Python Playwright, Node Playwright, and another
-project's virtualenv Playwright do not count. Install the browser extra into the
-MCP runtime:
+Browser/profile/feed/inbox tools are not enabled by default. They are read-only
+but they use your logged-in browser session, so they carry account risk.
 
 ```bash
 uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
 ```
 
-Start Chrome with CDP:
+Start Chrome with CDP and log in manually:
 
 ```bash
 google-chrome --remote-debugging-port=9222
 ```
 
 Then call `check_session` from your MCP client.
+
+Important: `uvx` is isolated. Global Python Playwright, Node Playwright, or
+another project virtualenv does not count. Use `--with-extra browser` so the MCP
+runtime gets its own browser dependencies.
+
+## Token Usage
+
+Claude Desktop does not expose built-in per-MCP token counts.
+
+This server tracks usage safely:
+
+- Estimated tokens: `ceil(response_chars / 4)`, always available.
+- Exact-style counting: optional Anthropic `/v1/messages/count_tokens`.
+- Full response payloads are not stored.
+- Exact-style counting sends the counted response text to Anthropic only when
+  both `ANTHROPIC_API_KEY` and `LINKEDIN_MCP_EXACT_TOKEN_COUNT=true` are set.
+
+Enable exact-style counting:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... LINKEDIN_MCP_EXACT_TOKEN_COUNT=true uvx mcp-server-linkedin-zero
+```
+
+Then ask your MCP client to call:
+
+- `get_usage_stats`
+- `get_tool_usage_summary`
+- `reset_usage_stats`
+
+Do not use terminal transcript logging as the main token counter; it can expose
+private profile, inbox, and resume data.
 
 ## Optional Extras
 
@@ -113,18 +121,20 @@ uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra pdf
 uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser --with-extra multi --with-extra pdf
 ```
 
-## Low-Spec / No Docker
+## Safety Model
 
-Docker is not required. Engine 1 public tools work on low-spec systems. Browser
-tools are lazy and unload after idle time. Optional extras are installed only
-when users need those features.
+- Local tools: zero LinkedIn account risk.
+- Public/no-login tools: read-only, no LinkedIn account required.
+- Browser tools: opt-in read-only browser mode with account risk.
+- Voyager/private API mode: disabled unless explicitly enabled.
 
-## Update Existing Installs
+No tool posts, likes, connects, follows, applies, or sends messages.
 
-Refresh and reinstall the MCP config:
+## Tool Counts
 
-```bash
-uvx --refresh-package mcp-server-linkedin-zero --from mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop
-```
+- Default: 23 usable tools.
+- Browser enabled: 34 tools.
+- Browser + Voyager enabled: 35 tools.
 
-Then fully restart Claude Desktop.
+`search_jobs_multi` works in default mode by falling back to LinkedIn-only
+results. Install `--with-extra multi` for all 5 job boards.

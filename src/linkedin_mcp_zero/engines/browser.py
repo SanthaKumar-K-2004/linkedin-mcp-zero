@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import random
 import time
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
@@ -12,7 +14,18 @@ from platformdirs import user_data_dir
 
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME, DEFAULT_LIMIT
 from linkedin_mcp_zero.config.settings import Settings
+from linkedin_mcp_zero.metrics.store import MetricsStore
 from linkedin_mcp_zero.utils.compress import clean_text, compact_dict, truncate
+
+DAILY_CAPS = {
+    "profile_view": 20,
+    "people_search": 15,
+    "connections": 10,
+    "messaging_read": 10,
+    "feed_read": 10,
+    "notifications": 30,
+    "company_people": 15,
+}
 
 
 class BrowserEngine:
@@ -24,6 +37,7 @@ class BrowserEngine:
         self._mode = "cdp"
         self._last_used = 0.0
         self._lock = asyncio.Lock()
+        self._metrics = MetricsStore(settings)
 
     async def status(self) -> dict[str, Any]:
         cdp = await self._cdp_status()
@@ -43,7 +57,7 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/feed/")
+        page = await self._page("https://www.linkedin.com/feed/", "feed_read")
         title = await _safe_title(page)
         url = page.url
         logged_in = "login" not in url and "authwall" not in url
@@ -52,14 +66,14 @@ class BrowserEngine:
             "valid": logged_in,
             "url": url,
             "title": title,
-            "risk": "minimal",
+            "risk": "browser_readonly_account_risk",
         }
 
     async def get_my_profile(self) -> dict[str, Any]:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/in/me/")
+        page = await self._page("https://www.linkedin.com/in/me/", "profile_view")
         return await self._extract_profile(page, "me")
 
     async def get_person_profile(self, uname: str) -> dict[str, Any]:
@@ -73,7 +87,7 @@ class BrowserEngine:
         else:
             key = profile.removeprefix("in/")
             url = f"https://www.linkedin.com/in/{key}/"
-        page = await self._page(url)
+        page = await self._page(url, "profile_view")
         return await self._extract_profile(page, key)
 
     async def search_people(
@@ -87,7 +101,10 @@ class BrowserEngine:
         if not ready["available"]:
             return ready
         query = quote_plus(" ".join(part for part in (kw, loc, co) if part))
-        page = await self._page(f"https://www.linkedin.com/search/results/people/?keywords={query}")
+        page = await self._page(
+            f"https://www.linkedin.com/search/results/people/?keywords={query}",
+            "people_search",
+        )
         people = await _extract_people_links(page, limit)
         return {"items": people, "count": len(people), "source": page.url}
 
@@ -95,7 +112,10 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/mynetwork/invite-connect/connections/")
+        page = await self._page(
+            "https://www.linkedin.com/mynetwork/invite-connect/connections/",
+            "connections",
+        )
         people = await _extract_people_links(page, limit)
         return {"items": people, "count": len(people), "source": page.url}
 
@@ -103,7 +123,7 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/messaging/")
+        page = await self._page("https://www.linkedin.com/messaging/", "messaging_read")
         rows = await _extract_text_blocks(
             page,
             "li.msg-conversation-listitem, .msg-conversation-card, a[href*='/messaging/thread/']",
@@ -117,7 +137,7 @@ class BrowserEngine:
         if not ready["available"]:
             return ready
         url = id if id.startswith("http") else f"https://www.linkedin.com/messaging/thread/{id}/"
-        page = await self._page(url)
+        page = await self._page(url, "messaging_read")
         messages = await _extract_text_blocks(
             page,
             ".msg-s-message-list__event, .msg-s-event-listitem, [data-event-urn]",
@@ -130,7 +150,7 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/feed/")
+        page = await self._page("https://www.linkedin.com/feed/", "feed_read")
         posts = await _extract_text_blocks(
             page,
             ".feed-shared-update-v2, .occludable-update, article",
@@ -143,7 +163,7 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/notifications/")
+        page = await self._page("https://www.linkedin.com/notifications/", "notifications")
         rows = await _extract_text_blocks(
             page,
             ".nt-card, .notification-item, li",
@@ -171,7 +191,10 @@ class BrowserEngine:
             return ready
         slug = _company_slug(co)
         query = f"?keywords={quote_plus(kw)}" if kw else ""
-        page = await self._page(f"https://www.linkedin.com/company/{slug}/people/{query}")
+        page = await self._page(
+            f"https://www.linkedin.com/company/{slug}/people/{query}",
+            "company_people",
+        )
         people = await _extract_people_links(page, limit)
         return {"items": people, "count": len(people), "source": page.url}
 
@@ -197,15 +220,18 @@ class BrowserEngine:
             return {
                 **status,
                 "available": False,
-                "reason": "Playwright is not installed.",
-                "install": "uv sync --extra browser",
+                "reason": "Playwright is not installed inside this MCP runtime.",
+                "install": (
+                    'uvx --from "mcp-server-linkedin-zero[browser]" '
+                    "mcp-server-linkedin-zero --doctor"
+                ),
             }
         if not status.get("available") and can_fallback:
             status = {
                 **status,
                 "available": True,
                 "mode": "patchright",
-                "reason": "CDP unavailable; using explicit Patchright fallback.",
+                "reason": "CDP unavailable; using explicit higher-risk Patchright fallback.",
             }
         try:
             await self._ensure_browser()
@@ -270,7 +296,8 @@ class BrowserEngine:
                 await self._playwright.stop()
             self._playwright = None
 
-    async def _page(self, url: str) -> Any:
+    async def _page(self, url: str, action_type: str) -> Any:
+        await self._pace(action_type)
         browser = await self._ensure_browser()
         context = self._context or (
             browser.contexts[0] if browser.contexts else await browser.new_context()
@@ -333,7 +360,7 @@ class BrowserEngine:
                 "exp": experience,
                 "edu": education,
                 "url": page.url,
-                "risk": "minimal",
+                "risk": "browser_readonly_account_risk",
             }
         )
 
@@ -346,7 +373,7 @@ class BrowserEngine:
             data = response.json()
             return {
                 "available": True,
-                "risk": "minimal",
+                "risk": "browser_readonly_account_risk",
                 "cdp": self.settings.cdp_url,
                 "browser": data.get("Browser", ""),
                 "websocket": bool(data.get("webSocketDebuggerUrl")),
@@ -357,11 +384,23 @@ class BrowserEngine:
     def _unavailable(self, reason: str) -> dict[str, Any]:
         return {
             "available": False,
-            "risk": "minimal",
+            "risk": "browser_readonly_account_risk",
             "cdp": self.settings.cdp_url,
             "reason": reason,
             "start_chrome": "google-chrome --remote-debugging-port=9222",
         }
+
+    async def _pace(self, action_type: str) -> None:
+        day = datetime.now().date().isoformat()
+        cap = DAILY_CAPS.get(action_type, 10)
+        current = self._metrics.browser_cap(action_type, day)
+        if current >= cap:
+            raise RuntimeError(
+                f"Daily browser read cap reached for {action_type} ({cap}/day). "
+                "This protects your LinkedIn account from high-volume automation."
+            )
+        await asyncio.sleep(random.uniform(1.5, 4.0))
+        self._metrics.increment_browser_cap(action_type, day)
 
     def _playwright_available(self) -> bool:
         try:

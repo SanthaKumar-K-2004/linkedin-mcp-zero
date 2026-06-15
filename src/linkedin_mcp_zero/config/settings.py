@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     data_dir: str | None = None
     cdp_url: str = "http://127.0.0.1:9222"
     browser_idle_seconds: int = 300
+    enable_browser: bool = False
     enable_patchright_fallback: bool = False
     browser_user_data_dir: str | None = None
+    exact_token_count: bool = False
+    token_count_model: str = "claude-sonnet-4-5"
+    anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     li_at: str | None = Field(default=None, validation_alias="LI_AT")
