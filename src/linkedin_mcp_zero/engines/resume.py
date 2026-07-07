@@ -6,10 +6,20 @@ from typing import Any
 
 from docx import Document
 from platformdirs import user_data_dir
+import structlog
 
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.compress import clean_text, compact_dict, truncate
+
+logger = structlog.get_logger()
+
+try:
+    from docling.document_converter import DocumentConverter
+
+    DOCLING_AVAILABLE = True
+except ImportError:
+    DOCLING_AVAILABLE = False
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
@@ -130,9 +140,23 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
     if suffix in {".txt", ".md"}:
         return file.read_text(encoding="utf-8", errors="ignore")
     if suffix == ".docx":
+        if DOCLING_AVAILABLE:
+            try:
+                converter = DocumentConverter()
+                result = converter.convert(str(file))
+                return result.document.export_to_markdown()
+            except Exception as exc:
+                logger.warning("Docling docx conversion failed, falling back to python-docx", error=str(exc))
         document = Document(str(file))
         return "\n".join(p.text for p in document.paragraphs)
     if suffix == ".pdf":
+        if DOCLING_AVAILABLE:
+            try:
+                converter = DocumentConverter()
+                result = converter.convert(str(file))
+                return result.document.export_to_markdown()
+            except Exception as exc:
+                logger.warning("Docling pdf conversion failed, falling back to pymupdf", error=str(exc))
         try:
             import fitz  # type: ignore[import-not-found]
         except ImportError:

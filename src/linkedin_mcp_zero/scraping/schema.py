@@ -3,14 +3,14 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 
-from bs4 import BeautifulSoup
+from selectolax.parser import HTMLParser
 
 
 def extract_json_ld(html: str) -> list[dict[str, object]]:
-    soup = BeautifulSoup(html, "lxml")
+    parser = HTMLParser(html)
     values: list[dict[str, object]] = []
-    for tag in soup.select('script[type="application/ld+json"]'):
-        raw = tag.string or tag.get_text()
+    for tag in parser.css('script[type="application/ld+json"]'):
+        raw = tag.text()
         if not raw.strip():
             continue
         try:

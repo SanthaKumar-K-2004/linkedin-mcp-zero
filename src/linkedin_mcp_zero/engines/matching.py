@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections import Counter
 import csv
 import json
+import math
 from pathlib import Path
+import re
 from typing import Any
 
 import structlog
@@ -12,11 +15,56 @@ from linkedin_mcp_zero.storage.db import Storage
 
 logger = structlog.get_logger()
 
+try:
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+
 
 class MatchingEngine:
     def __init__(self, storage: Storage, public: PublicAPIEngine) -> None:
         self.storage = storage
         self.public = public
+        self._transformer_model = None
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                # Load small fast model
+                self._transformer_model = SentenceTransformer("all-MiniLM-L6-v2")
+            except Exception as e:
+                logger.warning(
+                    "Failed to initialize SentenceTransformer, falling back to TF-IDF matching",
+                    error=str(e),
+                )
+
+    def _semantic_score(self, text1: str, text2: str) -> float:
+        if self._transformer_model:
+            try:
+                embeddings = self._transformer_model.encode([text1, text2], convert_to_numpy=True)
+                dot = np.dot(embeddings[0], embeddings[1])
+                norm0 = np.linalg.norm(embeddings[0])
+                norm1 = np.linalg.norm(embeddings[1])
+                if norm0 and norm1:
+                    return float(dot / (norm0 * norm1))
+            except Exception as e:
+                logger.debug(
+                    "Failed semantic embedding match, falling back to text-cosine match",
+                    error=str(e),
+                )
+
+        # Pure python TF-IDF cosine similarity fallback
+        words1 = re.findall(r"\w+", text1.lower())
+        words2 = re.findall(r"\w+", text2.lower())
+        vec1 = Counter(words1)
+        vec2 = Counter(words2)
+        intersection = set(vec1.keys()) & set(vec2.keys())
+        numerator = sum(vec1[w] * vec2[w] for w in intersection)
+        sum1 = sum(val**2 for val in vec1.values())
+        sum2 = sum(val**2 for val in vec2.values())
+        denominator = math.sqrt(sum1) * math.sqrt(sum2)
+        return float(numerator) / denominator if denominator else 0.0
 
     async def match_jobs_to_resume(
         self,
@@ -47,7 +95,16 @@ class MatchingEngine:
                     detail = {}
             text = " ".join(str(v) for v in {**job, **detail}.values())
             matched = sorted(skill for skill in skills if skill.lower() in text.lower())
-            score = min(100, 45 + len(matched) * 12)
+
+            # Combine keyword overlap score and semantic match score
+            keyword_score = min(100, 40 + len(matched) * 15)
+            resume_text = f"{resume.get('name', '')} {resume.get('summary', '')} {' '.join(skills)}"
+            semantic_sim = self._semantic_score(resume_text, text)
+
+            # Final score is weighted average: 40% keyword overlap, 60% semantic similarity
+            score = int(0.4 * keyword_score + 0.6 * (semantic_sim * 100))
+            score = max(0, min(100, score))
+
             if score >= min_score:
                 matches.append(
                     {
@@ -55,7 +112,7 @@ class MatchingEngine:
                         **job,
                         "score": score,
                         "match_skills": matched[:8],
-                        "why": "Local keyword match against resume skills and job text.",
+                        "why": "Semantic matching with skill-profile similarity scoring.",
                     }
                 )
         return {"matches": matches, "summary": f"Found {len(matches)} matches >= {min_score}%"}

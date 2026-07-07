@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import random
 import re
 from datetime import datetime
 from typing import Any
 
-import httpx
-from bs4 import BeautifulSoup
+from selectolax.parser import HTMLParser
+from curl_cffi.requests import AsyncSession
+import structlog
+from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
-from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT, USER_AGENT
+from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
 from linkedin_mcp_zero.scraping.schema import extract_json_ld, first_job_posting
+from linkedin_mcp_zero.utils.circuit_breaker import CircuitBreaker
 from linkedin_mcp_zero.utils.compress import (
     clean_text,
     compact_dict,
@@ -18,20 +22,39 @@ from linkedin_mcp_zero.utils.compress import (
 )
 from linkedin_mcp_zero.utils.errors import ParseError, UpstreamError
 
+logger = structlog.get_logger()
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+]
+
 JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=|jobPosting/|[-_])(\d{6,})")
 
 
 class GuestAPIClient:
     def __init__(self, timeout: float = 15) -> None:
         self.timeout = timeout
-        self._client = httpx.AsyncClient(
-            headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
-            timeout=timeout,
-            follow_redirects=True,
-        )
+        self._session: AsyncSession | None = None
+        self.circuit_breaker = CircuitBreaker()
+
+    async def _get_session(self) -> AsyncSession:
+        if self._session is None:
+            ua = random.choice(USER_AGENTS)
+            self._session = AsyncSession(
+                impersonate="chrome110",
+                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+                timeout=self.timeout,
+            )
+        return self._session
 
     async def close(self) -> None:
-        await self._client.aclose()
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
     async def search_jobs(
         self,
@@ -46,6 +69,7 @@ class GuestAPIClient:
         sort: str = "relevance",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
+        self.circuit_breaker.check()
         limit = max(1, min(limit, MAX_LIMIT))
         params: dict[str, Any] = {
             "keywords": kw,
@@ -66,14 +90,31 @@ class GuestAPIClient:
             params["sortBy"] = "DD"
 
         rows: list[dict[str, object]] = []
+        session = await self._get_session()
+
         for start in range(0, limit, 25):
             params["start"] = start
-            response = await self._client.get(
-                f"{GUEST_API_BASE}/seeMoreJobPostings/search",
-                params=params,
-            )
-            if response.status_code >= 400:
-                raise UpstreamError(f"LinkedIn guest search failed: HTTP {response.status_code}")
+
+            async def _make_request() -> Any:
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(3),
+                    wait=wait_exponential(multiplier=1, min=2, max=10),
+                    reraise=True,
+                ):
+                    with attempt:
+                        response = await session.get(
+                            f"{GUEST_API_BASE}/seeMoreJobPostings/search",
+                            params=params,
+                        )
+                        if response.status_code >= 400:
+                            new_ua = random.choice(USER_AGENTS)
+                            session.headers["User-Agent"] = new_ua
+                            self.circuit_breaker.record_failure()
+                            raise UpstreamError(f"LinkedIn guest search failed: HTTP {response.status_code}")
+                        self.circuit_breaker.record_success()
+                        return response
+
+            response = await _make_request()
             parsed = parse_search_results(response.text)
             rows.extend(parsed)
             if len(parsed) == 0 or len(rows) >= limit:
@@ -81,10 +122,28 @@ class GuestAPIClient:
         return rows[:limit]
 
     async def get_job_details(self, job_id_or_url: str) -> dict[str, object]:
+        self.circuit_breaker.check()
         job_id = extract_job_id(job_id_or_url)
-        response = await self._client.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
-        if response.status_code >= 400:
-            raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
+        session = await self._get_session()
+
+        async def _make_request() -> Any:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=2, max=10),
+                reraise=True,
+            ):
+                with attempt:
+                    response = await session.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
+                    if response.status_code >= 400:
+                        new_ua = random.choice(USER_AGENTS)
+                        session.headers["User-Agent"] = new_ua
+                        self.circuit_breaker.record_failure()
+                        raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
+                    self.circuit_breaker.record_success()
+                    return response
+
+        response = await _make_request()
+        return parse_job_detail(response.text, job_id)
         return parse_job_detail(response.text, job_id)
 
 
@@ -98,8 +157,8 @@ def extract_job_id(value: str) -> str:
 
 
 def parse_search_results(html: str, now: datetime | None = None) -> list[dict[str, object]]:
-    soup = BeautifulSoup(html, "lxml")
-    cards = soup.select(".base-card, .job-search-card")
+    parser = HTMLParser(html)
+    cards = parser.css(".base-card, .job-search-card")
     results: list[dict[str, object]] = []
     for card in cards:
         title = clean_text(
@@ -111,13 +170,13 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
         location = compact_location(
             _first_text(card, [".job-search-card__location", ".base-search-card__metadata", "span"])
         )
-        link = card.select_one("a.base-card__full-link, a[href*='/jobs/view/']")
-        url = clean_text(link.get("href") if link else "")
+        link = card.css_first("a.base-card__full-link, a[href*='/jobs/view/']")
+        url = clean_text(link.attributes.get("href", "") if link else "")
         job_id = extract_job_id(url) if url else ""
         posted = ""
-        time_tag = card.select_one("time")
+        time_tag = card.css_first("time")
         if time_tag:
-            posted = time_tag.get("datetime") or time_tag.get_text()
+            posted = time_tag.attributes.get("datetime") or time_tag.text()
         results.append(
             compact_dict(
                 {
@@ -134,18 +193,18 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
 
 
 def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
-    soup = BeautifulSoup(html, "lxml")
+    parser = HTMLParser(html)
     schema = first_job_posting(extract_json_ld(html)) or {}
     title = clean_text(
-        str(schema.get("title") or _first_text(soup, ["h1", ".top-card-layout__title"]))
+        str(schema.get("title") or _first_text(parser, ["h1", ".top-card-layout__title"]))
     )
     company = _schema_org_name(schema.get("hiringOrganization")) or clean_text(
-        _first_text(soup, [".topcard__org-name-link", ".top-card-layout__second-subline a"])
+        _first_text(parser, [".topcard__org-name-link", ".top-card-layout__second-subline a"])
     )
     location = _schema_org_name(schema.get("jobLocation")) or clean_text(
-        _first_text(soup, [".topcard__flavor--bullet", ".top-card-layout__second-subline span"])
+        _first_text(parser, [".topcard__flavor--bullet", ".top-card-layout__second-subline span"])
     )
-    desc = str(schema.get("description") or _first_text(soup, [".show-more-less-html__markup"]))
+    desc = str(schema.get("description") or _first_text(parser, [".show-more-less-html__markup"]))
     salary = _salary(schema.get("baseSalary"))
     employment = schema.get("employmentType")
     posted = str(schema.get("datePosted") or "")
@@ -169,9 +228,9 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
 
 def _first_text(node: Any, selectors: list[str]) -> str:
     for selector in selectors:
-        found = node.select_one(selector)
+        found = node.css_first(selector)
         if found:
-            return found.get_text(" ")
+            return found.text(deep=True, separator=" ")
     return ""
 
 
