@@ -45,7 +45,7 @@ class GuestAPIClient:
         if self._session is None:
             ua = random.choice(USER_AGENTS)
             self._session = AsyncSession(
-                impersonate="chrome120",
+                impersonate="chrome128",
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
                 timeout=self.timeout,
             )
