@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-from fastmcp import FastMCP, Context
+from fastmcp import Context, FastMCP
 from pydantic import BaseModel
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
@@ -19,6 +19,7 @@ from linkedin_mcp_zero.metrics.store import MetricsStore
 from linkedin_mcp_zero.metrics.tracking import track_async_tool, track_sync_tool
 from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 from linkedin_mcp_zero.storage.db import Storage
+from linkedin_mcp_zero.utils.llm import LLMProvider
 
 JobType = Literal["", "fulltime", "parttime", "contract", "internship"]
 
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     browser = BrowserEngine(settings)
     voyager = VoyagerEngine(settings)
     metrics = MetricsStore(settings)
+    llm_provider = LLMProvider()
 
     def async_tool(engine: str):
         def decorator(fn):
@@ -161,9 +163,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         return await matching.compare_jobs(ids)
 
     @async_tool("local")
-    async def export_jobs(
-        ids: list[str], fmt: Literal["csv", "json", "xlsx"] = "csv"
-    ) -> dict[str, object]:
+    async def export_jobs(ids: list[str], fmt: Literal["csv", "json", "xlsx"] = "csv") -> dict[str, object]:
         """Export public job details to a local file."""
         return await matching.export_jobs(ids, fmt)
 
@@ -293,9 +293,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
                     "available": True,
                     "tools": 1,
                     "mode": "all_5_boards" if _jobspy_available() else "linkedin_fallback",
-                    "hint": None
-                    if _jobspy_available()
-                    else "Install with `--with-extra multi` for all 5 boards.",
+                    "hint": None if _jobspy_available() else "Install with `--with-extra multi` for all 5 boards.",
                 },
                 {
                     "name": "resume",
@@ -355,9 +353,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
             else "estimate",
             "estimate_formula": "ceil(response_chars / 4)",
             "stores_payloads": False,
-            "exact_count_external_send": bool(
-                settings.exact_token_count and settings.anthropic_api_key
-            ),
+            "exact_count_external_send": bool(settings.exact_token_count and settings.anthropic_api_key),
             "token_count_model": settings.token_count_model,
         }
 
@@ -366,9 +362,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Show local aggregate MCP usage by tool."""
         summary = metrics.summary()
         summary["stores_payloads"] = False
-        summary["exact_count_external_send"] = bool(
-            settings.exact_token_count and settings.anthropic_api_key
-        )
+        summary["exact_count_external_send"] = bool(settings.exact_token_count and settings.anthropic_api_key)
         return summary
 
     @app.tool()
@@ -469,9 +463,9 @@ For each job found:
         jobs = await public.search_jobs(kw=" ".join(skills[:3]) if skills else "software engineer", limit=10)
 
         prompt = f"""You are an expert career advisor. Given this resume:
-Name: {resume.get('name')}
-Skills: {', '.join(skills)}
-Summary: {resume.get('summary', '')[:300]}
+Name: {resume.get("name")}
+Skills: {", ".join(skills)}
+Summary: {resume.get("summary", "")[:300]}
 
 And these job listings:
 {json.dumps(jobs[:5], indent=2)}
@@ -494,12 +488,12 @@ Return a concise summary with match scores."""
             return {"error": "resume_not_found", "id": resume_id}
 
         prompt = f"""Write a concise, compelling cover letter (max 200 words) for:
-JOB: {job.get('t')} at {job.get('co')}
-Requirements: {job.get('desc', '')[:500]}
+JOB: {job.get("t")} at {job.get("co")}
+Requirements: {job.get("desc", "")[:500]}
 CANDIDATE:
-Name: {resume.get('name')}
-Skills: {', '.join(resume.get('skills', []))}
-Experience: {resume.get('summary', '')[:300]}"""
+Name: {resume.get("name")}
+Skills: {", ".join(resume.get("skills", []))}
+Experience: {resume.get("summary", "")[:300]}"""
 
         result = await ctx.sample(
             messages=prompt,
@@ -516,8 +510,8 @@ Experience: {resume.get('summary', '')[:300]}"""
             trends = await public.get_job_trends(job.get("t", ""), job.get("loc", ""))
 
         prompt = f"""Analyze this job's compensation:
-Job: {job.get('t')} at {job.get('co')} in {job.get('loc')}
-Listed salary: {job.get('sal', 'Not disclosed')}
+Job: {job.get("t")} at {job.get("co")} in {job.get("loc")}
+Listed salary: {job.get("sal", "Not disclosed")}
 Market data context: {json.dumps(trends)}"""
 
         result = await ctx.sample(
@@ -564,11 +558,36 @@ Market data context: {json.dumps(trends)}"""
 
         return await matching.export_jobs(ids, fmt)
 
+    @app.tool()
+    async def get_resume_insights_advanced(id: int, ctx: Context) -> dict[str, object]:
+        """Get advanced AI-powered insights on a resume using LLM reasoning."""
+        resume_data = storage.get_resume(id)
+        if not resume_data:
+            return {"error": "resume_not_found", "id": id}
+
+        prompt = f"""Analyze this candidate resume profile:
+Name: {resume_data.get("name")}
+Skills: {", ".join(resume_data.get("skills", []))}
+Summary: {resume_data.get("summary", "")}
+
+Provide:
+1. A brief executive summary of their profile
+2. Their top 3 strengths
+3. Key areas of improvement / missing skills for modern software engineering roles
+4. Tailored recommendations to make their resume stand out"""
+
+        analysis = await llm_provider.generate(
+            prompt=prompt,
+            system_prompt="You are an expert technical recruiter and career coach.",
+            ctx=ctx,
+        )
+        return {"id": id, "insights": analysis}
+
     return app
 
 
 def _registered_tool_count(settings: Settings) -> int:
-    base = 28
+    base = 29
     if settings.enable_browser:
         base += 11
     if settings.enable_voyager:

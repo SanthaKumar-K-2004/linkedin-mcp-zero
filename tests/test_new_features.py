@@ -70,3 +70,22 @@ async def test_app_resources_and_prompts() -> None:
     assert any("trending" in t for t in templates)
     assert any("summary" in t for t in templates)
     assert any("profile" in t for t in templates)
+
+    tools = [t.name for t in await app.list_tools()]
+    assert "smart_match_jobs" in tools
+    assert "generate_cover_letter" in tools
+    assert "analyze_salary_offer" in tools
+    assert "personalized_job_hunt" in tools
+    assert "confirm_export" in tools
+    assert "get_resume_insights_advanced" in tools
+
+
+@pytest.mark.anyio
+async def test_llm_provider() -> None:
+    from linkedin_mcp_zero.utils.llm import LLMProvider
+
+    provider = LLMProvider()
+    response = await provider.generate("Analyze my resume", system_prompt="Recruiter")
+    assert "[Local Fallback Analysis]" in response
+    assert "Analyze my resume" in response
+

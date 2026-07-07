@@ -5,9 +5,9 @@ import re
 from datetime import datetime
 from typing import Any
 
-from selectolax.parser import HTMLParser
-from curl_cffi.requests import AsyncSession
 import structlog
+from curl_cffi.requests import AsyncSession
+from selectolax.parser import HTMLParser
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
 from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
@@ -161,12 +161,8 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
     cards = parser.css(".base-card, .job-search-card")
     results: list[dict[str, object]] = []
     for card in cards:
-        title = clean_text(
-            _first_text(card, [".base-search-card__title", ".job-search-card__title", "h3"])
-        )
-        company = clean_text(
-            _first_text(card, [".base-search-card__subtitle", ".job-search-card__subtitle", "h4"])
-        )
+        title = clean_text(_first_text(card, [".base-search-card__title", ".job-search-card__title", "h3"]))
+        company = clean_text(_first_text(card, [".base-search-card__subtitle", ".job-search-card__subtitle", "h4"]))
         location = compact_location(
             _first_text(card, [".job-search-card__location", ".base-search-card__metadata", "span"])
         )
@@ -195,9 +191,7 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
 def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
     parser = HTMLParser(html)
     schema = first_job_posting(extract_json_ld(html)) or {}
-    title = clean_text(
-        str(schema.get("title") or _first_text(parser, ["h1", ".top-card-layout__title"]))
-    )
+    title = clean_text(str(schema.get("title") or _first_text(parser, ["h1", ".top-card-layout__title"])))
     company = _schema_org_name(schema.get("hiringOrganization")) or clean_text(
         _first_text(parser, [".topcard__org-name-link", ".top-card-layout__second-subline a"])
     )

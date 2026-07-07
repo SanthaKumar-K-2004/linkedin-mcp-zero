@@ -123,6 +123,14 @@ def cli() -> None:
         Console().print_json(json.dumps(result.__dict__, default=str))
         return
 
+    DISCLAIMER = (
+        "\n[bold yellow]SAFE USE NOTICE & DISCLAIMER:[/bold yellow]\n"
+        "This tool is for educational & research purposes only. Automated scraping of LinkedIn\n"
+        "may violate their Terms of Service and could lead to account restrictions or IP blocks.\n"
+        "Always use public guest endpoints or browser/voyager/sampling modes responsibly.\n"
+    )
+    Console(stderr=True).print(DISCLAIMER)
+
     app = create_app(settings)
     if settings.transport == "streamable-http":
         api_key = settings.api_key
@@ -184,7 +192,6 @@ def _print_doctor(runtime: dict[str, object]) -> None:
         for note in notes:
             console.print(f"  - {note}")
     console.print(
-        'Browser extra fix: uvx --from "mcp-server-linkedin-zero[browser]" '
-        "mcp-server-linkedin-zero --doctor",
+        'Browser extra fix: uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor',
         markup=False,
     )

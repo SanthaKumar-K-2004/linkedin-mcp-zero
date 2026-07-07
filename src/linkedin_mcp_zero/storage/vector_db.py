@@ -74,7 +74,7 @@ class VectorStorage:
 
         scored = []
         for doc_id, (v, payload) in self._fallback_db.items():
-            dot = sum(a * b for a, b in zip(vector, v))
+            dot = sum(a * b for a, b in zip(vector, v, strict=False))
             norm_a = math.sqrt(sum(a**2 for a in vector))
             norm_b = math.sqrt(sum(b**2 for b in v))
             score = dot / (norm_a * norm_b) if norm_a and norm_b else 0.0

@@ -16,9 +16,7 @@ class VoyagerEngine:
                 "enabled": False,
                 "risk": "disabled_private_api_risk",
                 "reason": "Voyager is off by default.",
-                "enable": (
-                    "Run with --enable-voyager and provide LI_AT only if you accept the risk."
-                ),
+                "enable": ("Run with --enable-voyager and provide LI_AT only if you accept the risk."),
             }
         if not self.settings.li_at:
             return {
@@ -32,7 +30,5 @@ class VoyagerEngine:
             "enabled": True,
             "risk": "disabled_private_api_risk",
             "uname": uname,
-            "reason": (
-                "Voyager HTTP implementation is intentionally gated for a later risk-reviewed pass."
-            ),
+            "reason": ("Voyager HTTP implementation is intentionally gated for a later risk-reviewed pass."),
         }

@@ -140,10 +140,7 @@ def verify_client_config(
             ok=all(bool(check["ok"]) for check in checks),
             path=None,
             checks=checks,
-            repair_hint=(
-                "Install Claude Code CLI, then run "
-                "`linkedin-mcp-zero --install-client claude-code`."
-            ),
+            repair_hint=("Install Claude Code CLI, then run `linkedin-mcp-zero --install-client claude-code`."),
         )
 
     target = Path(path).expanduser() if path else config_path(client, cwd)
@@ -374,8 +371,7 @@ def _load_json(path: Path) -> dict[str, Any]:
         recovered = _load_latest_valid_backup(path)
         if recovered is None:
             raise ValueError(
-                f"Config JSON is invalid at {path}: {exc}. "
-                f"A copy was saved to {corrupt}. Fix the JSON and rerun."
+                f"Config JSON is invalid at {path}: {exc}. A copy was saved to {corrupt}. Fix the JSON and rerun."
             ) from exc
         return recovered
     if not isinstance(data, dict):

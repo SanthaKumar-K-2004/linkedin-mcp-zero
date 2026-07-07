@@ -42,10 +42,7 @@ DETAIL_HTML = """
 
 
 def test_extract_job_id_from_url() -> None:
-    assert (
-        extract_job_id("https://www.linkedin.com/jobs/view/senior-python-dev-3900000012")
-        == "3900000012"
-    )
+    assert extract_job_id("https://www.linkedin.com/jobs/view/senior-python-dev-3900000012") == "3900000012"
     assert extract_job_id("3900000012") == "3900000012"
 
 

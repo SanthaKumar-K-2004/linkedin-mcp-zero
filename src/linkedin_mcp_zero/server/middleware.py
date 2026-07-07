@@ -50,9 +50,7 @@ class APIKeyAndRateLimitMiddleware:
                 await send(
                     {
                         "type": "http.response.body",
-                        "body": (
-                            b'{"error": "Unauthorized", "detail": "Invalid or missing API key"}'
-                        ),
+                        "body": (b'{"error": "Unauthorized", "detail": "Invalid or missing API key"}'),
                     }
                 )
                 return
@@ -80,9 +78,7 @@ class APIKeyAndRateLimitMiddleware:
                 await send(
                     {
                         "type": "http.response.body",
-                        "body": (
-                            b'{"error": "Too Many Requests", "detail": "Rate limit exceeded"}'
-                        ),
+                        "body": (b'{"error": "Too Many Requests", "detail": "Rate limit exceeded"}'),
                     }
                 )
                 return

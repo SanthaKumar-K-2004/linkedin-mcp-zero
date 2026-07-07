@@ -4,9 +4,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+import structlog
 from docx import Document
 from platformdirs import user_data_dir
-import structlog
 
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.storage.db import Storage
@@ -160,10 +160,7 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
         try:
             import fitz  # type: ignore[import-not-found]
         except ImportError:
-            return (
-                "PDF support requires optional dependency: "
-                "uv sync --extra pdf or pip install pymupdf"
-            )
+            return "PDF support requires optional dependency: uv sync --extra pdf or pip install pymupdf"
         with fitz.open(str(file)) as doc:
             return "\n".join(page.get_text() for page in doc)
     raise ValueError("Unsupported resume format. Use .txt, .md, .docx, or install pdf extra.")

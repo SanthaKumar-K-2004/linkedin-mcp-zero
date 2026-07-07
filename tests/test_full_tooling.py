@@ -64,9 +64,7 @@ def test_resume_analysis_path_traversal(tmp_path: Path) -> None:
     allowed_dir = tmp_path / "allowed"
     allowed_dir.mkdir()
 
-    engine = ResumeEngine(
-        Storage(Settings(data_dir=str(tmp_path / "data"), allowed_resume_dirs=[str(allowed_dir)]))
-    )
+    engine = ResumeEngine(Storage(Settings(data_dir=str(tmp_path / "data"), allowed_resume_dirs=[str(allowed_dir)])))
 
     bad_file = tmp_path / "outside.txt"
     bad_file.write_text("Secret Resume Content", encoding="utf-8")
@@ -169,9 +167,7 @@ def test_claude_code_command_uses_add_json() -> None:
 
 @pytest.mark.asyncio
 async def test_browser_reports_unavailable_without_cdp(tmp_path: Path) -> None:
-    engine = BrowserEngine(
-        Settings(data_dir=str(tmp_path), cdp_url="http://127.0.0.1:9", timeout_seconds=1)
-    )
+    engine = BrowserEngine(Settings(data_dir=str(tmp_path), cdp_url="http://127.0.0.1:9", timeout_seconds=1))
     result = await engine.get_my_profile()
     assert result["available"] is False
     assert "start_chrome" in result
@@ -185,7 +181,7 @@ async def test_browser_tools_are_hidden_by_default(tmp_path: Path) -> None:
     assert "get_my_profile" not in names
     assert "get_profile_voyager" not in names
     assert "get_usage_stats" in names
-    assert len(tools) == 28
+    assert len(tools) == 29
 
 
 @pytest.mark.asyncio

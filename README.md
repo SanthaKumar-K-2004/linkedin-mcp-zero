@@ -49,7 +49,7 @@ uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --instal
 
 ## Tool Inventory
 
-### Default Tools: 23 Working
+### Default Tools: 29 Working
 
 These work without LinkedIn login or browser setup.
 
@@ -78,6 +78,12 @@ These work without LinkedIn login or browser setup.
 | 21 | `get_usage_stats` | Local response-size/token estimates | Local |
 | 22 | `get_tool_usage_summary` | Aggregate local usage by tool | Local |
 | 23 | `reset_usage_stats` | Clear local usage metrics | Local |
+| 24 | `smart_match_jobs` | AI-powered job matching using client LLM | Local/public |
+| 25 | `generate_cover_letter` | Tailored cover letter using client LLM | Local/public |
+| 26 | `analyze_salary_offer` | AI-powered salary analysis using client LLM | Local/public |
+| 27 | `personalized_job_hunt` | Interactive job search preferences | Local/public |
+| 28 | `confirm_export` | Export jobs with user confirmation | Local |
+| 29 | `get_resume_insights_advanced` | Advanced AI-powered resume insights | Local |
 
 ### Browser Tools: +11
 
@@ -86,25 +92,25 @@ but they use your logged-in browser session.
 
 | # | Tool | Feature |
 |---:|---|---|
-| 24 | `get_my_profile` | Read your profile |
-| 25 | `get_person_profile` | Read a public/person profile page |
-| 26 | `search_people` | People search through browser |
-| 27 | `get_my_connections` | Read your connection list |
-| 28 | `get_inbox` | Recent conversations list |
-| 29 | `get_conversation` | Read a conversation thread |
-| 30 | `get_feed` | Read home feed posts |
-| 31 | `get_notifications` | Read notifications |
-| 32 | `get_sidebar_profiles` | Suggested/sidebar profiles |
-| 33 | `get_company_employees` | Company people page |
-| 34 | `check_session` | Check CDP/login readiness |
+| 30 | `get_my_profile` | Read your profile |
+| 31 | `get_person_profile` | Read a public/person profile page |
+| 32 | `search_people` | People search through browser |
+| 33 | `get_my_connections` | Read your connection list |
+| 34 | `get_inbox` | Recent conversations list |
+| 35 | `get_conversation` | Read a conversation thread |
+| 36 | `get_feed` | Read home feed posts |
+| 37 | `get_notifications` | Read notifications |
+| 38 | `get_sidebar_profiles` | Suggested/sidebar profiles |
+| 39 | `get_company_employees` | Company people page |
+| 40 | `check_session` | Check CDP/login readiness |
 
 ### Gated Private-Risk Tool: +1
 
 | # | Tool | Feature |
 |---:|---|---|
-| 35 | `get_profile_voyager` | Voyager/private API placeholder, disabled by default |
+| 41 | `get_profile_voyager` | Voyager/private API placeholder, disabled by default |
 
-Default mode exposes **23 usable tools**: 22 core local/public tools plus
+Default mode exposes **29 usable tools**: 28 core local/public tools plus
 `search_jobs_multi`, which falls back to LinkedIn-only results unless the
 `multi` extra is installed. Browser tools appear only with `--enable-browser` or
 `--with-extra browser` in an installed client config. Voyager/private API mode is
@@ -114,9 +120,9 @@ Tool counts:
 
 | Mode | Exposed Tools | Notes |
 |---|---:|---|
-| Default | 23 | Safe local/public tools; no LinkedIn login required |
-| Browser enabled | 34 | Adds 11 read-only browser tools; needs Chrome/CDP login |
-| Browser + Voyager | 35 | Adds gated private-API placeholder |
+| Default | 29 | Safe local/public tools; no LinkedIn login required |
+| Browser enabled | 40 | Adds 11 read-only browser tools; needs Chrome/CDP login |
+| Browser + Voyager | 41 | Adds gated private-API placeholder |
 
 ## Safety Model
 

@@ -6,9 +6,7 @@ from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT
 from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
 
 
-async def search_jobs_multi(
-    kw: str, loc: str = "", limit: int = 5, age: int = 168
-) -> list[dict[str, Any]]:
+async def search_jobs_multi(kw: str, loc: str = "", limit: int = 5, age: int = 168) -> list[dict[str, Any]]:
     try:
         from jobspy import scrape_jobs
     except ImportError:

@@ -51,9 +51,7 @@ class BrowserEngine:
             "patchright_fallback": self.settings.enable_patchright_fallback,
             "connected": self._browser is not None,
             "mode": self._mode if self._browser else None,
-            "idle_seconds": round(time.monotonic() - self._last_used, 1)
-            if self._last_used
-            else None,
+            "idle_seconds": round(time.monotonic() - self._last_used, 1) if self._last_used else None,
         }
 
     async def check_session(self) -> dict[str, Any]:
@@ -224,10 +222,7 @@ class BrowserEngine:
                 **status,
                 "available": False,
                 "reason": "Playwright is not installed inside this MCP runtime.",
-                "install": (
-                    'uvx --from "mcp-server-linkedin-zero[browser]" '
-                    "mcp-server-linkedin-zero --doctor"
-                ),
+                "install": ('uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor'),
             }
         if not status.get("available") and can_fallback:
             status = {
@@ -258,16 +253,12 @@ class BrowserEngine:
             if self._browser:
                 self._last_used = time.monotonic()
                 return self._browser
-            if self.settings.enable_patchright_fallback and not (await self._cdp_status()).get(
-                "available"
-            ):
+            if self.settings.enable_patchright_fallback and not (await self._cdp_status()).get("available"):
                 self._mode = "patchright"
                 from patchright.async_api import async_playwright
 
                 self._playwright = await async_playwright().start()
-                data_dir = Path(
-                    self.settings.browser_user_data_dir or user_data_dir(f"{DATA_DIR_NAME}-browser")
-                )
+                data_dir = Path(self.settings.browser_user_data_dir or user_data_dir(f"{DATA_DIR_NAME}-browser"))
                 data_dir.mkdir(parents=True, exist_ok=True)
                 self._context = await self._playwright.chromium.launch_persistent_context(
                     str(data_dir),
@@ -279,9 +270,7 @@ class BrowserEngine:
                 from playwright.async_api import async_playwright
 
                 self._playwright = await async_playwright().start()
-                self._browser = await self._playwright.chromium.connect_over_cdp(
-                    self.settings.cdp_url
-                )
+                self._browser = await self._playwright.chromium.connect_over_cdp(self.settings.cdp_url)
             self._last_used = time.monotonic()
             return self._browser
 
@@ -302,9 +291,7 @@ class BrowserEngine:
     async def _page(self, url: str, action_type: str) -> Any:
         await self._pace(action_type)
         browser = await self._ensure_browser()
-        context = self._context or (
-            browser.contexts[0] if browser.contexts else await browser.new_context()
-        )
+        context = self._context or (browser.contexts[0] if browser.contexts else await browser.new_context())
         page = context.pages[0] if context.pages else await context.new_page()
         await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self._last_used = time.monotonic()
@@ -312,9 +299,7 @@ class BrowserEngine:
 
     async def _active_page(self) -> Any:
         browser = await self._ensure_browser()
-        context = self._context or (
-            browser.contexts[0] if browser.contexts else await browser.new_context()
-        )
+        context = self._context or (browser.contexts[0] if browser.contexts else await browser.new_context())
         page = context.pages[0] if context.pages else await context.new_page()
         self._last_used = time.monotonic()
         return page

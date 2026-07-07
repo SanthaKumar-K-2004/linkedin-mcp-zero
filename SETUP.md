@@ -132,9 +132,55 @@ No tool posts, likes, connects, follows, applies, or sends messages.
 
 ## Tool Counts
 
-- Default: 23 usable tools.
-- Browser enabled: 34 tools.
-- Browser + Voyager enabled: 35 tools.
+- Default: 29 usable tools.
+- Browser enabled: 40 tools.
+- Browser + Voyager enabled: 41 tools.
 
 `search_jobs_multi` works in default mode by falling back to LinkedIn-only
 results. Install `--with-extra multi` for all 5 job boards.
+
+## Docker Deployment (Engine 1)
+
+You can build and run Engine 1 as a Docker container:
+
+```bash
+# Build the Docker image
+docker build -t linkedin-mcp-zero .
+
+# Run the container exposing port 8000 in HTTP mode
+docker run -d -p 8000:8000 \
+  -e LINKEDIN_MCP_API_KEY="my-secret-key" \
+  -e LINKEDIN_MCP_RATE_LIMIT="100/minute" \
+  linkedin-mcp-zero
+```
+
+## Streamable-HTTP & REST API Usage
+
+When running in `streamable-http` mode, the server implements standard Starlette CORS headers and an ASGI API-Key/Rate-limiting middleware:
+
+*   **Authorization Header:** Requests must include `Authorization: Bearer <api-key>` or an `x-api-key: <api-key>` header.
+*   **Rate Limiting:** Defaults to 100 requests per minute per IP, returning `HTTP 429 Too Many Requests` on violation.
+*   **CORS:** Origins can be restricted by configuring the `cors_allowed_origins` parameter in the environment.
+
+Example request using `curl`:
+
+```bash
+curl -X POST http://localhost:8000/mcp/v1/tools/search_jobs \
+  -H "Authorization: Bearer my-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"kw": "python", "limit": 5}'
+```
+
+## Advanced MCP Spec Primitives
+
+### 💬 MCP Sampling (LLM Delegation)
+Using `ctx.sample()`, the server asks the client LLM to reason over gathered data. This enables advanced agent behaviors without hardcoding LLM clients/keys:
+*   `smart_match_jobs`: Submits resume skills and listings, requesting Claude to rank jobs and identify skill gaps.
+*   `generate_cover_letter`: Synthesizes a tailored, 200-word cover letter matching target requirements.
+*   `analyze_salary_offer`: Evaluates salary structures against market data.
+
+### ❓ MCP Elicitation (Interactive Input)
+Using `ctx.elicit()`, tools can pause execution and prompt the user for structured, Pydantic-validated forms:
+*   `personalized_job_hunt`: Interactively prompts for a `SearchPreferences` form containing min salary, max distance, must-have skills, and preferred company size.
+*   `confirm_export`: Prompts for confirmation before initiating job exports.
+
