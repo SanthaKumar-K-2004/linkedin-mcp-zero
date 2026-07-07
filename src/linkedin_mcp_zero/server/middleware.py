@@ -61,6 +61,13 @@ class APIKeyAndRateLimitMiddleware:
             now = time.time()
             self.requests[client_ip] = [t for t in self.requests[client_ip] if now - t < 60]
 
+            # Periodic cleanup of stale client IPs to prevent memory leaks
+            if len(self.requests) > 1000:
+                self.requests = defaultdict(
+                    list,
+                    {ip: times for ip, times in self.requests.items() if times},
+                )
+
             if len(self.requests[client_ip]) >= self.rate_limit:
                 logger.warning(
                     "Rate limit exceeded",

@@ -45,7 +45,7 @@ class GuestAPIClient:
         if self._session is None:
             ua = random.choice(USER_AGENTS)
             self._session = AsyncSession(
-                impersonate="chrome110",
+                impersonate="chrome120",
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
                 timeout=self.timeout,
             )
@@ -144,7 +144,6 @@ class GuestAPIClient:
 
         response = await _make_request()
         return parse_job_detail(response.text, job_id)
-        return parse_job_detail(response.text, job_id)
 
 
 def extract_job_id(value: str) -> str:
@@ -224,7 +223,7 @@ def _first_text(node: Any, selectors: list[str]) -> str:
     for selector in selectors:
         found = node.css_first(selector)
         if found:
-            return found.text(deep=True, separator=" ")
+            return found.text(deep=True)
     return ""
 
 

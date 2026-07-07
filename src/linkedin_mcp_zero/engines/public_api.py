@@ -106,7 +106,10 @@ class PublicAPIEngine:
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
         jobs = await self.search_jobs(kw=co, loc=loc, limit=limit)
-        return [job for job in jobs if co.lower() in str(job.get("co", "")).lower()] or jobs
+        filtered = [job for job in jobs if co.lower() in str(job.get("co", "")).lower()]
+        if not filtered and jobs:
+            logger.warning("No jobs matched target company name in results, returning empty list", company=co)
+        return filtered
 
     async def search_companies(self, kw: str, limit: int = 10) -> list[dict[str, object]]:
         jobs = await self.search_jobs(kw=kw, limit=min(max(limit * 2, 5), 50))

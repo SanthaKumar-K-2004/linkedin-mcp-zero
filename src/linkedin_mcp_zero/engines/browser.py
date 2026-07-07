@@ -213,66 +213,66 @@ class BrowserEngine:
             await self._close_unlocked()
 
     async def _ensure_ready(self) -> dict[str, Any]:
-        status = await self.status()
-        can_fallback = self.settings.enable_patchright_fallback and self._patchright_available()
-        if not status.get("available") and not can_fallback:
-            return status
-        if status.get("available") and not status.get("playwright"):
-            return {
-                **status,
-                "available": False,
-                "reason": "Playwright is not installed inside this MCP runtime.",
-                "install": ('uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor'),
-            }
-        if not status.get("available") and can_fallback:
-            status = {
-                **status,
-                "available": True,
-                "mode": "patchright",
-                "reason": "CDP unavailable; using explicit higher-risk Patchright fallback.",
-            }
-        try:
-            await self._ensure_browser()
-        except Exception as exc:
-            return {
-                **status,
-                "available": False,
-                "reason": f"Browser connect failed: {exc}",
-                "start_chrome": "google-chrome --remote-debugging-port=9222",
-            }
-        return {**status, "available": True, "connected": True}
+        async with self._lock:
+            status = await self.status()
+            can_fallback = self.settings.enable_patchright_fallback and self._patchright_available()
+            if not status.get("available") and not can_fallback:
+                return status
+            if status.get("available") and not status.get("playwright"):
+                return {
+                    **status,
+                    "available": False,
+                    "reason": "Playwright is not installed inside this MCP runtime.",
+                    "install": ('uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor'),
+                }
+            if not status.get("available") and can_fallback:
+                status = {
+                    **status,
+                    "available": True,
+                    "mode": "patchright",
+                    "reason": "CDP unavailable; using explicit higher-risk Patchright fallback.",
+                }
+            try:
+                await self._ensure_browser()
+            except Exception as exc:
+                return {
+                    **status,
+                    "available": False,
+                    "reason": f"Browser connect failed: {exc}",
+                    "start_chrome": "google-chrome --remote-debugging-port=9222",
+                }
+            return {**status, "available": True, "connected": True}
 
     async def _ensure_browser(self) -> Any:
-        async with self._lock:
-            if (
-                self._browser
-                and self._last_used
-                and time.monotonic() - self._last_used >= self.settings.browser_idle_seconds
-            ):
-                await self._close_unlocked()
-            if self._browser:
-                self._last_used = time.monotonic()
-                return self._browser
-            if self.settings.enable_patchright_fallback and not (await self._cdp_status()).get("available"):
-                self._mode = "patchright"
-                from patchright.async_api import async_playwright
-
-                self._playwright = await async_playwright().start()
-                data_dir = Path(self.settings.browser_user_data_dir or user_data_dir(f"{DATA_DIR_NAME}-browser"))
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    str(data_dir),
-                    headless=False,
-                )
-                self._browser = self._context.browser
-            else:
-                self._mode = "cdp"
-                from playwright.async_api import async_playwright
-
-                self._playwright = await async_playwright().start()
-                self._browser = await self._playwright.chromium.connect_over_cdp(self.settings.cdp_url)
+        if (
+            self._browser
+            and self._last_used
+            and time.monotonic() - self._last_used >= self.settings.browser_idle_seconds
+        ):
+            await self._close_unlocked()
+        if self._browser:
             self._last_used = time.monotonic()
             return self._browser
+        if self.settings.enable_patchright_fallback and not (await self._cdp_status()).get("available"):
+            self._mode = "patchright"
+            from patchright.async_api import async_playwright
+
+            self._playwright = await async_playwright().start()
+            data_dir = Path(self.settings.browser_user_data_dir or user_data_dir(f"{DATA_DIR_NAME}-browser"))
+            data_dir.mkdir(parents=True, exist_ok=True)
+            self._context = await self._playwright.chromium.launch_persistent_context(
+                str(data_dir),
+                headless=False,
+            )
+            self._browser = self._context.browser
+        else:
+            self._mode = "cdp"
+            from playwright.async_api import async_playwright
+
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.connect_over_cdp(self.settings.cdp_url)
+        self._last_used = time.monotonic()
+        return self._browser
 
     async def _close_unlocked(self) -> None:
         if self._context:

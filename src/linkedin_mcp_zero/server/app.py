@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Literal
 
+import structlog
 from fastmcp import Context, FastMCP
 from pydantic import BaseModel
 
@@ -20,6 +21,8 @@ from linkedin_mcp_zero.metrics.tracking import track_async_tool, track_sync_tool
 from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.llm import LLMProvider
+
+logger = structlog.get_logger()
 
 JobType = Literal["", "fulltime", "parttime", "contract", "internship"]
 
@@ -46,6 +49,19 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     voyager = VoyagerEngine(settings)
     metrics = MetricsStore(settings)
     llm_provider = LLMProvider()
+
+    @app.lifespan()
+    async def lifespan(server):
+        yield
+        logger.info("Server shutting down, cleaning up engine resources...")
+        try:
+            await public.close()
+        except Exception as e:
+            logger.warning("Failed to close public api engine during shutdown", error=str(e))
+        try:
+            await browser.close()
+        except Exception as e:
+            logger.warning("Failed to close browser engine during shutdown", error=str(e))
 
     def async_tool(engine: str):
         def decorator(fn):
@@ -276,7 +292,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     async def get_engine_status() -> dict[str, object]:
         """Show available engines."""
         browser_status = await browser.status()
-        registered_count = _registered_tool_count(settings)
+        registered_count = len(await app.list_tools())
         return {
             "tool_count": registered_count,
             "catalog_tool_count": len(TOOLS),
@@ -535,14 +551,43 @@ Market data context: {json.dumps(trends)}"""
 
         filtered = []
         for job in jobs:
-            job_text = str(job.get("t", "")) + " " + str(job.get("co", "")) + " " + str(job.get("loc", ""))
+            job_id = str(job.get("id", ""))
+            job_detail = {}
+            if job_id:
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    job_detail = await public.get_job_details(job_id)
+
+            merged_job = {**job, **job_detail}
+            job_text = " ".join(str(v) for v in merged_job.values())
+
+            # 1. Skills match
             skills_match = True
             for skill in prefs.must_have_skills:
                 if skill.lower() not in job_text.lower():
                     skills_match = False
                     break
-            if skills_match:
-                filtered.append(job)
+            if not skills_match:
+                continue
+
+            # 2. Salary match
+            sal_str = str(merged_job.get("sal", ""))
+            if prefs.min_salary > 0 and sal_str:
+                sal_digits = "".join(c for c in sal_str if c.isdigit())
+                if sal_digits:
+                    sal_val = int(sal_digits)
+                    if "K" in sal_str.upper() or len(sal_digits) <= 3:
+                        sal_val *= 1000
+                    if sal_val < prefs.min_salary:
+                        continue
+
+            # 3. Remote/Distance matching
+            loc_str = str(merged_job.get("loc", "")).lower()
+            if prefs.max_distance_miles < 20 and "remote" not in loc_str:
+                continue
+
+            filtered.append(merged_job)
 
         return {"jobs": filtered[:10], "prefs_applied": prefs.model_dump()}
 
@@ -584,15 +629,6 @@ Provide:
         return {"id": id, "insights": analysis}
 
     return app
-
-
-def _registered_tool_count(settings: Settings) -> int:
-    base = 29
-    if settings.enable_browser:
-        base += 11
-    if settings.enable_voyager:
-        base += 1
-    return base
 
 
 def _jobspy_available() -> bool:

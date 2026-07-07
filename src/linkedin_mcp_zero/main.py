@@ -142,11 +142,16 @@ def cli() -> None:
                 f"Generated secure API key: [bold green]{api_key}[/bold green]"
             )
 
+        cors_origins = settings.cors_allowed_origins
+        allow_creds = True
+        if "*" in cors_origins:
+            allow_creds = False
+
         middleware_list = [
             Middleware(
                 CORSMiddleware,
-                allow_origins=settings.cors_allowed_origins,
-                allow_credentials=True,
+                allow_origins=cors_origins,
+                allow_credentials=allow_creds,
                 allow_methods=["*"],
                 allow_headers=["*"],
             ),

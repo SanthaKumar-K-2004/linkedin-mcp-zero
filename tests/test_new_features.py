@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -89,3 +90,33 @@ async def test_llm_provider() -> None:
     assert "[Local Fallback Analysis]" in response
     assert "Analyze my resume" in response
 
+
+@pytest.mark.anyio
+async def test_concurrent_compare_and_export(tmp_path: Path) -> None:
+    from unittest.mock import AsyncMock
+
+    from linkedin_mcp_zero.config.settings import Settings
+    from linkedin_mcp_zero.engines.matching import MatchingEngine
+    from linkedin_mcp_zero.engines.public_api import PublicAPIEngine
+
+    storage = Storage(Settings(data_dir=str(tmp_path)))
+    public = MagicMock(spec=PublicAPIEngine)
+    public.get_job_details = AsyncMock(
+        return_value={
+            "id": "123",
+            "co": "Google",
+            "t": "Python Engineer",
+            "sal": "$150,000",
+            "loc": "Remote",
+            "type": "Full-time",
+            "url": "https://linkedin.com/jobs/view/123",
+        }
+    )
+
+    engine = MatchingEngine(storage, public)
+    res = await engine.compare_jobs(["123"])
+    assert res["rows"][0][0] == "Google"
+
+    exp = await engine.export_jobs(["123"], fmt="json")
+    assert exp["count"] == 1
+    assert "jobs_export.json" in exp["path"]

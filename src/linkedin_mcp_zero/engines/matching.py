@@ -118,23 +118,40 @@ class MatchingEngine:
         return {"matches": matches, "summary": f"Found {len(matches)} matches >= {min_score}%"}
 
     async def compare_jobs(self, ids: list[str]) -> dict[str, Any]:
+        import asyncio
+
+        tasks = [self.public.get_job_details(job_id) for job_id in ids[:5]]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         rows = []
-        for job_id in ids[:5]:
-            details = await self.public.get_job_details(job_id)
-            rows.append(
-                [
-                    details.get("co", ""),
-                    details.get("t", ""),
-                    details.get("sal", ""),
-                    details.get("loc", ""),
-                    details.get("type", ""),
-                    details.get("url", ""),
-                ]
-            )
+        for job_id, result in zip(ids[:5], results, strict=True):
+            if isinstance(result, Exception):
+                logger.warning("Failed to fetch job details for comparison", job_id=job_id, error=str(result))
+                rows.append(["ERROR", f"Failed to load job {job_id}", "", "", "", ""])
+            else:
+                rows.append(
+                    [
+                        result.get("co", ""),
+                        result.get("t", ""),
+                        result.get("sal", ""),
+                        result.get("loc", ""),
+                        result.get("type", ""),
+                        result.get("url", ""),
+                    ]
+                )
         return {"columns": ["Company", "Title", "Salary", "Location", "Type", "URL"], "rows": rows}
 
     async def export_jobs(self, ids: list[str], fmt: str = "csv") -> dict[str, Any]:
-        jobs = [await self.public.get_job_details(job_id) for job_id in ids]
+        import asyncio
+
+        tasks = [self.public.get_job_details(job_id) for job_id in ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        jobs = []
+        for job_id, result in zip(ids, results, strict=True):
+            if isinstance(result, Exception):
+                logger.warning("Failed to fetch job details for export", job_id=job_id, error=str(result))
+            else:
+                jobs.append(result)
+
         fmt = fmt.lower()
         path = self.storage.exports_dir / f"jobs_export.{fmt}"
         if fmt == "json":
