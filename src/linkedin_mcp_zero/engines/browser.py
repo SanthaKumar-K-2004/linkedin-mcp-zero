@@ -233,7 +233,7 @@ class BrowserEngine:
                     "reason": "CDP unavailable; using explicit higher-risk Patchright fallback.",
                 }
             try:
-                await self._ensure_browser()
+                await self._ensure_browser_unlocked()
             except Exception as exc:
                 return {
                     **status,
@@ -244,6 +244,10 @@ class BrowserEngine:
             return {**status, "available": True, "connected": True}
 
     async def _ensure_browser(self) -> Any:
+        async with self._lock:
+            return await self._ensure_browser_unlocked()
+
+    async def _ensure_browser_unlocked(self) -> Any:
         if (
             self._browser
             and self._last_used

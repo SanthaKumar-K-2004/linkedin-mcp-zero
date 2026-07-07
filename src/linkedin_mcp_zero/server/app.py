@@ -549,15 +549,17 @@ Market data context: {json.dumps(trends)}"""
         prefs = result.data
         jobs = await public.search_jobs(kw, limit=25)
 
-        filtered = []
-        for job in jobs:
-            job_id = str(job.get("id", ""))
-            job_detail = {}
-            if job_id:
-                from contextlib import suppress
+        import asyncio
 
-                with suppress(Exception):
-                    job_detail = await public.get_job_details(job_id)
+        jobs_with_ids = [j for j in jobs if j.get("id")]
+        tasks = [public.get_job_details(str(j["id"])) for j in jobs_with_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        filtered = []
+        for job, detail_res in zip(jobs_with_ids, results, strict=True):
+            job_detail = {}
+            if not isinstance(detail_res, Exception):
+                job_detail = detail_res
 
             merged_job = {**job, **job_detail}
             job_text = " ".join(str(v) for v in merged_job.values())
@@ -574,10 +576,12 @@ Market data context: {json.dumps(trends)}"""
             # 2. Salary match
             sal_str = str(merged_job.get("sal", ""))
             if prefs.min_salary > 0 and sal_str:
-                sal_digits = "".join(c for c in sal_str if c.isdigit())
-                if sal_digits:
-                    sal_val = int(sal_digits)
-                    if "K" in sal_str.upper() or len(sal_digits) <= 3:
+                import re
+
+                sal_match = re.search(r"(\d+)", sal_str)
+                if sal_match:
+                    sal_val = int(sal_match.group(1))
+                    if "K" in sal_str.upper() or "k" in sal_str:
                         sal_val *= 1000
                     if sal_val < prefs.min_salary:
                         continue
