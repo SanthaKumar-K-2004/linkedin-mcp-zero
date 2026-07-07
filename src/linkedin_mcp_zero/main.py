@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import secrets
 
 from rich.console import Console
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
 from linkedin_mcp_zero.config.install import (
@@ -14,6 +17,7 @@ from linkedin_mcp_zero.config.install import (
 )
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.server.app import create_app
+from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.utils.logging import configure_logging
 
 
@@ -121,11 +125,36 @@ def cli() -> None:
 
     app = create_app(settings)
     if settings.transport == "streamable-http":
+        api_key = settings.api_key
+        if not api_key:
+            api_key = secrets.token_hex(16)
+            console = Console()
+            console.print(
+                "[bold yellow]WARNING:[/bold yellow] No API key configured for HTTP transport. "
+                f"Generated secure API key: [bold green]{api_key}[/bold green]"
+            )
+
+        middleware_list = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=settings.cors_allowed_origins,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            ),
+            Middleware(
+                APIKeyAndRateLimitMiddleware,
+                api_key=api_key,
+                rate_limit_per_minute=settings.rate_limit_per_minute,
+            ),
+        ]
+
         app.run(
             transport="streamable-http",
             host=settings.host,
             port=settings.port,
             show_banner=False,
+            middleware=middleware_list,
         )
     else:
         app.run(transport="stdio", show_banner=False)

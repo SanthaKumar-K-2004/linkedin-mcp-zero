@@ -11,9 +11,12 @@ from functools import wraps
 from typing import Any, TypeVar, cast
 
 import httpx
+import structlog
 
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.metrics.store import MetricsStore
+
+logger = structlog.get_logger()
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -158,7 +161,8 @@ async def _count_exact(
             response.raise_for_status()
             data = response.json()
         tokens = int(data.get("input_tokens", 0))
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to count exact tokens via Anthropic API", error=str(exc))
         return
     if tokens > 0:
         store.update_exact_tokens(row_id, tokens)

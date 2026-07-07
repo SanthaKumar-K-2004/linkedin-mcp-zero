@@ -5,8 +5,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+import structlog
+
 from linkedin_mcp_zero.engines.public_api import PublicAPIEngine
 from linkedin_mcp_zero.storage.db import Storage
+
+logger = structlog.get_logger()
 
 
 class MatchingEngine:
@@ -34,7 +38,12 @@ class MatchingEngine:
             if job.get("id"):
                 try:
                     detail = await self.public.get_job_details(str(job["id"]))
-                except Exception:
+                except Exception as e:
+                    logger.warning(
+                        "Failed to get job details for matching",
+                        job_id=job["id"],
+                        error=str(e),
+                    )
                     detail = {}
             text = " ".join(str(v) for v in {**job, **detail}.values())
             matched = sorted(skill for skill in skills if skill.lower() in text.lower())

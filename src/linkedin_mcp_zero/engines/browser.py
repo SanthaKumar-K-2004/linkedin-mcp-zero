@@ -10,12 +10,15 @@ from typing import Any
 from urllib.parse import quote_plus
 
 import httpx
+import structlog
 from platformdirs import user_data_dir
 
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME, DEFAULT_LIMIT
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.metrics.store import MetricsStore
 from linkedin_mcp_zero.utils.compress import clean_text, compact_dict, truncate
+
+logger = structlog.get_logger()
 
 DAILY_CAPS = {
     "profile_view": 20,
@@ -420,7 +423,8 @@ class BrowserEngine:
 async def _safe_title(page: Any) -> str:
     try:
         return clean_text(await page.title())
-    except Exception:
+    except Exception as exc:
+        logger.debug("Failed to get page title", error=str(exc))
         return ""
 
 
@@ -428,7 +432,8 @@ async def _first_text(page: Any, selectors: list[str], max_chars: int = 280) -> 
     for selector in selectors:
         try:
             text = await page.locator(selector).first().inner_text(timeout=1500)
-        except Exception:
+        except Exception as exc:
+            logger.debug("Failed to get first text for selector", selector=selector, error=str(exc))
             continue
         text = truncate(text, max_chars)
         if text:
@@ -453,7 +458,8 @@ async def _extract_text_blocks(
               .filter((item) => item.text)
             """
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to extract text blocks", selector=selector, error=str(exc))
         values = []
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -484,7 +490,8 @@ async def _extract_people_links(
               .filter((item) => item.url.includes('/in/'))
             """
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to extract people links", selector=selector, error=str(exc))
         values = []
     rows: list[dict[str, str]] = []
     seen: set[str] = set()

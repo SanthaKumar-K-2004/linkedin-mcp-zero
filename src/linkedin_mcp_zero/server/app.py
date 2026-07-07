@@ -35,9 +35,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
     def async_tool(engine: str):
         def decorator(fn):
-            return app.tool()(
-                track_async_tool(fn, store=metrics, settings=settings, engine=engine)
-            )
+            return app.tool()(track_async_tool(fn, store=metrics, settings=settings, engine=engine))
 
         return decorator
 

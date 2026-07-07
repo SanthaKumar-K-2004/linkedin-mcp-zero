@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import structlog
+
 from linkedin_mcp_zero.cache.ttl_cache import TTLCache
 from linkedin_mcp_zero.config.defaults import CACHE_MAX_ENTRIES, DEFAULT_LIMIT
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
 from linkedin_mcp_zero.utils.rate_limit import TokenBucket
+
+logger = structlog.get_logger()
 
 
 class PublicAPIEngine:
@@ -165,7 +169,12 @@ class PublicAPIEngine:
             if job.get("id"):
                 try:
                     details = await self.get_job_details(str(job["id"]))
-                except Exception:
+                except Exception as e:
+                    logger.warning(
+                        "Failed to fetch job details for industry insights",
+                        job_id=job["id"],
+                        error=str(e),
+                    )
                     details = {}
                 for skill in details.get("skills", []):
                     text = str(skill)

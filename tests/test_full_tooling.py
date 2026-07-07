@@ -1,6 +1,9 @@
 from pathlib import Path
 
 import pytest
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+from starlette.testclient import TestClient
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
 from linkedin_mcp_zero.config.install import (
@@ -18,6 +21,7 @@ from linkedin_mcp_zero.metrics.store import MetricsStore
 from linkedin_mcp_zero.metrics.tracking import estimate_tokens
 from linkedin_mcp_zero.server.app import create_app
 from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
+from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.storage.db import Storage
 
 
@@ -35,6 +39,13 @@ def test_storage_alert_roundtrip(tmp_path: Path) -> None:
     assert storage.list_alerts()[0]["name"] == "Python Remote"
 
 
+def test_storage_alert_selection_validation(tmp_path: Path) -> None:
+    storage = Storage(Settings(data_dir=str(tmp_path)))
+    storage.save_alert("Python Remote", "python", "remote")
+    with pytest.raises(ValueError, match="Invalid alert IDs"):
+        storage.selected_alerts(["1; DROP TABLE alerts--"])
+
+
 def test_resume_analysis_text(tmp_path: Path) -> None:
     resume_path = tmp_path / "resume.txt"
     resume_path.write_text(
@@ -46,6 +57,22 @@ def test_resume_analysis_text(tmp_path: Path) -> None:
     assert result["id"] == 1
     assert result["email"] == "san@example.com"
     assert "Python" in result["skills"]
+
+
+def test_resume_analysis_path_traversal(tmp_path: Path) -> None:
+    # Create allowed and forbidden directories
+    allowed_dir = tmp_path / "allowed"
+    allowed_dir.mkdir()
+
+    engine = ResumeEngine(
+        Storage(Settings(data_dir=str(tmp_path / "data"), allowed_resume_dirs=[str(allowed_dir)]))
+    )
+
+    bad_file = tmp_path / "outside.txt"
+    bad_file.write_text("Secret Resume Content", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="outside allowed directories"):
+        engine.analyze_resume(str(bad_file))
 
 
 def test_app_factory_creates_fastmcp(tmp_path: Path) -> None:
@@ -191,6 +218,10 @@ def test_metrics_store_tracks_no_payload(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_multi_board_falls_back_to_linkedin(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "jobspy", None)
+
     class FakeClient:
         async def search_jobs(self, kw: str, loc: str = "", limit: int = 5):
             return [{"id": "1", "t": kw, "loc": loc, "url": "https://example.com"}]
@@ -224,3 +255,56 @@ async def test_voyager_is_gated_by_default(tmp_path: Path) -> None:
     result = await engine.get_profile("example")
     assert result["available"] is False
     assert result["enabled"] is False
+
+
+def test_streamable_http_auth(tmp_path: Path) -> None:
+    settings = Settings(
+        data_dir=str(tmp_path),
+        transport="streamable-http",
+        api_key="my-secret-key",
+        rate_limit_per_minute=2,
+    )
+    app = create_app(settings)
+
+    # Use fastmcp http_app creation method with real middlewares
+    http_app = app.http_app(
+        transport="streamable-http",
+        middleware=[
+            Middleware(
+                CORSMiddleware,
+                allow_origins=settings.cors_allowed_origins,
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            ),
+            Middleware(
+                APIKeyAndRateLimitMiddleware,
+                api_key="my-secret-key",
+                rate_limit_per_minute=2,
+            ),
+        ],
+    )
+
+    client = TestClient(http_app)
+
+    # 1. No credentials -> 401
+    resp = client.post("/sse", json={})
+    assert resp.status_code == 401
+
+    # 2. Wrong API key -> 401
+    resp = client.post("/sse", headers={"x-api-key": "wrong-key"}, json={})
+    assert resp.status_code == 401
+
+    # 3. Correct API key -> Not 401
+    resp = client.post("/sse", headers={"x-api-key": "my-secret-key"}, json={})
+    assert resp.status_code != 401
+
+    # 4. Correct authorization bearer -> Not 401
+    resp = client.post("/sse", headers={"authorization": "Bearer my-secret-key"}, json={})
+    assert resp.status_code != 401
+
+    # 5. Rate limit exceeded (limit = 2)
+    # We already made 2 successful requests with correct auth above.
+    # The 3rd request should trigger a 429.
+    resp = client.post("/sse", headers={"x-api-key": "my-secret-key"}, json={})
+    assert resp.status_code == 429

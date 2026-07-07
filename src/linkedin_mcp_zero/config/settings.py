@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         env_prefix="LINKEDIN_MCP_",
         env_file=(".env",),
         extra="ignore",
+        populate_by_name=True,
     )
 
     transport: str = "stdio"
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY")
     https_proxy: str | None = Field(default=None, validation_alias="HTTPS_PROXY")
     data_dir: str | None = None
+    allowed_resume_dirs: list[str] | None = None
     cdp_url: str = "http://127.0.0.1:9222"
     browser_idle_seconds: int = 300
     enable_browser: bool = False
@@ -32,3 +34,6 @@ class Settings(BaseSettings):
     token_count_model: str = "claude-sonnet-4-5"
     anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     li_at: str | None = Field(default=None, validation_alias="LI_AT")
+    api_key: str | None = Field(default=None, validation_alias="API_KEY")
+    cors_allowed_origins: list[str] = Field(default=["*"], validation_alias="CORS_ALLOWED_ORIGINS")
+    rate_limit_per_minute: int = Field(default=60, validation_alias="RATE_LIMIT_PER_MINUTE")

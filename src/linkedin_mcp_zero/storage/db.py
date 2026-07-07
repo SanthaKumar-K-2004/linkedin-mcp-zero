@@ -13,6 +13,7 @@ from linkedin_mcp_zero.config.settings import Settings
 
 class Storage:
     def __init__(self, settings: Settings) -> None:
+        self.settings = settings
         base = Path(settings.data_dir or user_data_dir(DATA_DIR_NAME))
         base.mkdir(parents=True, exist_ok=True)
         self.base_dir = base
@@ -89,10 +90,14 @@ class Storage:
     def selected_alerts(self, ids: list[int] | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if ids:
-                marks = ",".join("?" for _ in ids)
+                try:
+                    coerced_ids = [int(i) for i in ids]
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"Invalid alert IDs: {ids}") from e
+                marks = ",".join("?" for _ in coerced_ids)
                 rows = conn.execute(
                     f"SELECT * FROM alerts WHERE id IN ({marks}) ORDER BY id",
-                    tuple(ids),
+                    tuple(coerced_ids),
                 ).fetchall()
             else:
                 rows = conn.execute("SELECT * FROM alerts ORDER BY id").fetchall()

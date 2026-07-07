@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from docx import Document
+from platformdirs import user_data_dir
 
+from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.compress import clean_text, compact_dict, truncate
 
@@ -38,7 +40,23 @@ class ResumeEngine:
         self.storage = storage
 
     def analyze_resume(self, path: str) -> dict[str, Any]:
-        text = extract_resume_text(path)
+        settings = self.storage.settings
+        allowed = []
+        if settings.allowed_resume_dirs:
+            allowed = [Path(d).expanduser().resolve() for d in settings.allowed_resume_dirs]
+        else:
+            allowed = [
+                Path.home() / "Documents",
+                Path.home() / "Downloads",
+                Path("/tmp"),
+            ]
+            if settings.data_dir:
+                allowed.append(Path(settings.data_dir).expanduser().resolve())
+            else:
+                allowed.append(Path(user_data_dir(DATA_DIR_NAME)).expanduser().resolve())
+            allowed.append(Path.cwd().resolve())
+
+        text = extract_resume_text(path, allowed_dirs=allowed)
         email = _first_match(EMAIL_RE, text)
         phone = _first_match(PHONE_RE, text)
         skills = [skill for skill in SKILLS if skill.lower() in text.lower()]
@@ -78,8 +96,36 @@ class ResumeEngine:
         }
 
 
-def extract_resume_text(path: str) -> str:
-    file = Path(path).expanduser()
+def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> str:
+    file = Path(path).expanduser().resolve()
+
+    if allowed_dirs is None:
+        allowed_dirs = [
+            Path.home() / "Documents",
+            Path.home() / "Downloads",
+            Path("/tmp"),
+            Path.cwd().resolve(),
+        ]
+
+    is_allowed = False
+    for allowed_dir in allowed_dirs:
+        try:
+            resolved_dir = allowed_dir.resolve()
+            file.relative_to(resolved_dir)
+            is_allowed = True
+            break
+        except ValueError:
+            continue
+
+    if not is_allowed:
+        raise ValueError(
+            f"Resume path '{path}' is outside allowed directories. "
+            f"Allowed directories: {[str(d) for d in allowed_dirs]}"
+        )
+
+    if not file.exists():
+        raise FileNotFoundError(f"Resume not found: {path}")
+
     suffix = file.suffix.lower()
     if suffix in {".txt", ".md"}:
         return file.read_text(encoding="utf-8", errors="ignore")
