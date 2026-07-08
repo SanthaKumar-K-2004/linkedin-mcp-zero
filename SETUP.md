@@ -5,13 +5,13 @@
 No Docker is required.
 
 ```bash
-uvx mcp-server-linkedin-zero --doctor
+uvx linkedin-mcp-zero --doctor
 ```
 
 Run the MCP server directly:
 
 ```bash
-uvx mcp-server-linkedin-zero
+uvx linkedin-mcp-zero
 ```
 
 ## Claude Desktop
@@ -19,8 +19,8 @@ uvx mcp-server-linkedin-zero
 Install safely into Claude Desktop:
 
 ```bash
-uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop
-uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --verify-client claude-desktop
+uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --install-client claude-desktop
+uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --verify-client claude-desktop
 ```
 
 Then fully quit and reopen Claude Desktop.
@@ -30,13 +30,13 @@ Then fully quit and reopen Claude Desktop.
 Recommended one-command setup:
 
 ```bash
-uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-code
+uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --install-client claude-code
 ```
 
 Manual equivalent:
 
 ```bash
-claude mcp add linkedin-zero -- uvx --from mcp-server-linkedin-zero mcp-server-linkedin-zero
+claude mcp add linkedin-zero -- uvx --from linkedin-mcp-zero linkedin-mcp-zero
 ```
 
 ## Cursor
@@ -44,8 +44,8 @@ claude mcp add linkedin-zero -- uvx --from mcp-server-linkedin-zero mcp-server-l
 Run inside the project where you want `.cursor/mcp.json`:
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client cursor
-uvx mcp-server-linkedin-zero --verify-client cursor
+uvx linkedin-mcp-zero --install-client cursor
+uvx linkedin-mcp-zero --verify-client cursor
 ```
 
 ## VS Code
@@ -53,8 +53,8 @@ uvx mcp-server-linkedin-zero --verify-client cursor
 VS Code uses top-level `servers`, not `mcpServers`.
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client vscode
-uvx mcp-server-linkedin-zero --verify-client vscode
+uvx linkedin-mcp-zero --install-client vscode
+uvx linkedin-mcp-zero --verify-client vscode
 ```
 
 ## Browser Mode
@@ -63,7 +63,7 @@ Browser/profile/feed/inbox tools are not enabled by default. They are read-only
 but they use your logged-in browser session, so they carry account risk.
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra browser
 ```
 
 Start Chrome with CDP and log in manually:
@@ -93,7 +93,7 @@ This server tracks usage safely:
 Enable exact-style counting:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... LINKEDIN_MCP_EXACT_TOKEN_COUNT=true uvx mcp-server-linkedin-zero
+ANTHROPIC_API_KEY=sk-ant-... LINKEDIN_MCP_EXACT_TOKEN_COUNT=true uvx linkedin-mcp-zero
 ```
 
 Then ask your MCP client to call:
@@ -109,16 +109,16 @@ private profile, inbox, and resume data.
 
 ```bash
 # Browser/CDP tools
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra browser
 
 # Multi-board search through JobSpy
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra multi
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra multi
 
 # PDF resume parsing through PyMuPDF
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra pdf
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra pdf
 
 # Everything
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser --with-extra multi --with-extra pdf
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra browser --with-extra multi --with-extra pdf
 ```
 
 ## Safety Model

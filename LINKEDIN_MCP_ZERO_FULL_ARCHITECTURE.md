@@ -304,7 +304,7 @@ auto_detect:
 ### 3.2 Zero-Config Setup Flow
 
 ```
-User runs: uvx mcp-server-linkedin-zero@latest
+User runs: uvx linkedin-mcp-zero@latest
                 │
                 ▼
 ┌─────────────────────────────────────────┐
@@ -367,7 +367,7 @@ claude_desktop:
       "mcpServers": {
         "linkedin-zero": {
           "command": "uvx",
-          "args": ["mcp-server-linkedin-zero@latest"]
+          "args": ["linkedin-mcp-zero@latest"]
         }
       }
     }
@@ -377,7 +377,7 @@ claude_desktop:
     - For resume matching: set OPENAI_API_KEY in .env or env vars
 
 claude_code:
-  config_command: "claude mcp add linkedin-zero -e \"uvx mcp-server-linkedin-zero@latest\""
+  config_command: "claude mcp add linkedin-zero -e \"uvx linkedin-mcp-zero@latest\""
   transport: stdio
   notes: |
     - Claude Code auto-manages stdio MCP servers
@@ -391,7 +391,7 @@ cursor:
       "mcpServers": {
         "linkedin-zero": {
           "command": "uvx",
-          "args": ["mcp-server-linkedin-zero@latest"]
+          "args": ["linkedin-mcp-zero@latest"]
         }
       }
     }
@@ -405,7 +405,7 @@ custom_python_agent:
     async def main():
         params = StdioServerParameters(
             command="uvx",
-            args=["mcp-server-linkedin-zero@latest"]
+            args=["linkedin-mcp-zero@latest"]
         )
         async with ClientSession(params) as session:
             result = await session.call_tool("search_jobs", {
@@ -424,7 +424,7 @@ custom_js_agent:
     
     const transport = new StdioClientTransport({
       command: "uvx",
-      args: ["mcp-server-linkedin-zero@latest"]
+      args: ["linkedin-mcp-zero@latest"]
     });
     
     const client = new Client({ name: "my-agent" });
@@ -435,7 +435,7 @@ custom_js_agent:
     });
 
 http_mode_web_clients:
-  command: "uvx mcp-server-linkedin-zero@latest --transport streamable-http --port 8080"
+  command: "uvx linkedin-mcp-zero@latest --transport streamable-http --port 8080"
   notes: |
     - Used by web-based MCP clients
     - FastMCP supports HTTP transport natively

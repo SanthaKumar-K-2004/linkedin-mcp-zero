@@ -14,7 +14,7 @@
 
 No Docker required · Claude Desktop ready · Claude Code ready · Low-RAM friendly · PyPI published
 
-[![PyPI](https://img.shields.io/pypi/v/mcp-server-linkedin-zero?color=0A66C2)](https://pypi.org/project/mcp-server-linkedin-zero/)
+[![PyPI](https://img.shields.io/pypi/v/linkedin-mcp-zero?color=0A66C2)](https://pypi.org/project/linkedin-mcp-zero/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-stdio%20%7C%20http-purple)](https://modelcontextprotocol.io/)
@@ -60,26 +60,26 @@ Compare LinkedIn MCP Zero against the next most popular alternatives:
 
 | Client | Command |
 |---|---|
-| Claude Desktop | `uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop` |
-| Claude Code | `uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-code` |
-| Cursor | `uvx mcp-server-linkedin-zero --install-client cursor` |
-| VS Code | `uvx mcp-server-linkedin-zero --install-client vscode` |
-| Any stdio client | `uvx mcp-server-linkedin-zero` |
+| Claude Desktop | `uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --install-client claude-desktop` |
+| Claude Code | `uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --install-client claude-code` |
+| Cursor | `uvx linkedin-mcp-zero --install-client cursor` |
+| VS Code | `uvx linkedin-mcp-zero --install-client vscode` |
+| Any stdio client | `uvx linkedin-mcp-zero` |
 
 ```bash
-uvx mcp-server-linkedin-zero --doctor
+uvx linkedin-mcp-zero --doctor
 ```
 
 Verify after install:
 
 ```bash
-uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --verify-client claude-desktop
+uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --verify-client claude-desktop
 ```
 
 Browser mode:
 
 ```bash
-uvx --refresh-package mcp-server-linkedin-zero mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx --refresh-package linkedin-mcp-zero linkedin-mcp-zero --install-client claude-desktop --with-extra browser
 ```
 
 ## Tool Inventory
@@ -175,7 +175,7 @@ No tool posts, likes, connects, follows, applies, or sends messages.
 Install browser dependencies into the isolated `uvx` runtime:
 
 ```bash
-uvx mcp-server-linkedin-zero --install-client claude-desktop --with-extra browser
+uvx linkedin-mcp-zero --install-client claude-desktop --with-extra browser
 ```
 
 Start Chrome with remote debugging and log in manually:
@@ -202,7 +202,7 @@ privacy-safe tracker instead:
 Enable exact-style counting:
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-... LINKEDIN_MCP_EXACT_TOKEN_COUNT=true uvx mcp-server-linkedin-zero
+ANTHROPIC_API_KEY=sk-ant-... LINKEDIN_MCP_EXACT_TOKEN_COUNT=true uvx linkedin-mcp-zero
 ```
 
 Use a different token-count model if needed:
@@ -227,8 +227,8 @@ profile, inbox, resume, or job data.
 Print without editing files:
 
 ```bash
-uvx mcp-server-linkedin-zero --print-config --client claude-desktop
-uvx mcp-server-linkedin-zero --print-config --client vscode
+uvx linkedin-mcp-zero --print-config --client claude-desktop
+uvx linkedin-mcp-zero --print-config --client vscode
 ```
 
 Claude Desktop and Cursor use:
@@ -238,7 +238,7 @@ Claude Desktop and Cursor use:
   "mcpServers": {
     "linkedin-zero": {
       "command": "/absolute/path/to/uvx",
-      "args": ["mcp-server-linkedin-zero"]
+      "args": ["linkedin-mcp-zero"]
     }
   }
 }
@@ -251,7 +251,7 @@ VS Code uses:
   "servers": {
     "linkedin-zero": {
       "command": "/absolute/path/to/uvx",
-      "args": ["mcp-server-linkedin-zero"]
+      "args": ["linkedin-mcp-zero"]
     }
   }
 }
@@ -260,8 +260,8 @@ VS Code uses:
 ## Doctor
 
 ```bash
-uvx mcp-server-linkedin-zero --doctor
-uvx mcp-server-linkedin-zero --doctor --json
+uvx linkedin-mcp-zero --doctor
+uvx linkedin-mcp-zero --doctor --json
 ```
 
 Checks OS, Python, RAM, disk, Chrome, CDP URL, display state, optional extras,
