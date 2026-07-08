@@ -4,7 +4,7 @@ import inspect
 import os
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import structlog
 
@@ -69,7 +69,7 @@ def trace_span(name: str) -> Callable[[F], F]:
                 with _tracer.start_as_current_span(name):
                     return await fn(*args, **kwargs)
 
-            return async_wrapper  # type: ignore[return-value]
+            return cast(F, async_wrapper)
         else:
 
             @wraps(fn)
@@ -77,6 +77,6 @@ def trace_span(name: str) -> Callable[[F], F]:
                 with _tracer.start_as_current_span(name):
                     return fn(*args, **kwargs)
 
-            return sync_wrapper  # type: ignore[return-value]
+            return cast(F, sync_wrapper)
 
     return decorator

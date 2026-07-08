@@ -133,9 +133,6 @@ def cli() -> None:
 
     app = create_app(settings)
     if settings.transport == "streamable-http":
-        from starlette.requests import Request
-        from starlette.responses import JSONResponse
-
         try:
             from linkedin_mcp_zero.utils.oauth import OAuthMiddleware, oauth
         except ImportError:
@@ -145,17 +142,6 @@ def cli() -> None:
                 "Install them using `pip install mcp-server-linkedin-zero[oauth]`"
             )
             raise SystemExit(1) from None
-
-        @app.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
-        async def oauth_protected_resource(request: Request) -> JSONResponse:
-            return JSONResponse(
-                {
-                    "resource": f"http://{settings.host}:{settings.port}",
-                    "authorization_servers": [settings.oauth_server_url] if settings.oauth_server_url else [],
-                    "scopes_supported": ["jobs:read", "profile:read", "alerts:manage"],
-                    "bearer_methods_supported": ["header"],
-                }
-            )
 
         api_key = settings.api_key
         if not api_key:

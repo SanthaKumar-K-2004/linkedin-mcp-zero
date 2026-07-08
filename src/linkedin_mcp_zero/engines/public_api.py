@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -16,7 +16,7 @@ logger = structlog.get_logger()
 class PublicAPIEngine:
     def __init__(self, settings: Settings) -> None:
         self.client = GuestAPIClient(timeout=settings.timeout_seconds)
-        self.cache: TTLCache[object] = TTLCache(
+        self.cache: TTLCache[Any] = TTLCache(
             ttl_seconds=settings.cache_ttl_seconds,
             max_entries=CACHE_MAX_ENTRIES,
         )
@@ -38,7 +38,7 @@ class PublicAPIEngine:
         key = ("search_jobs", kw, loc, type, exp, remote, age, limit)
         cached = self.cache.get(key)
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cast(list[dict[str, object]], cached)
         await self.bucket.acquire()
         result = await self.client.search_jobs(
             kw=kw,
@@ -67,7 +67,7 @@ class PublicAPIEngine:
         key = ("search_jobs_advanced", kw, loc, co, type, exp, remote, age, sort, limit)
         cached = self.cache.get(key)
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cast(list[dict[str, object]], cached)
         await self.bucket.acquire()
         result = await self.client.search_jobs(
             kw=kw,
@@ -87,7 +87,7 @@ class PublicAPIEngine:
         key = ("get_job_details", id)
         cached = self.cache.get(key)
         if cached is not None:
-            return cached  # type: ignore[return-value]
+            return cast(dict[str, object], cached)
         await self.bucket.acquire()
         result = await self.client.get_job_details(id)
         self.cache.set(key, result)

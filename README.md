@@ -23,6 +23,39 @@ No Docker required · Claude Desktop ready · Claude Code ready · Low-RAM frien
 
 </div>
 
+---
+
+## 🎨 System Flow
+
+![LinkedIn MCP Zero Flow](mcp_flow.jpg)
+
+### 🔌 Works With
+- ✅ **Claude Desktop** (Fully verified)
+- ✅ **Claude Code** (Fully verified)
+- ✅ **Cursor** (Fully verified)
+- ✅ **VS Code + Copilot** (Fully verified)
+- ✅ **Cline / Roo Code** (Fully verified)
+- ✅ **Any standard Stdio/HTTP MCP client**
+
+---
+
+## 📊 Feature Comparison
+Compare LinkedIn MCP Zero against the next most popular alternatives:
+
+| Feature | stickerdaniel (2.3k★) | Other MCP Servers | **LinkedIn MCP Zero (10/10)** |
+|---|:---:|:---:|:---:|
+| **Zero-Login Public Tools** | ❌ None | ⚠️ 0-2 tools | **✅ 30+ Public Tools** |
+| **Semantic AI Resume Matching** | ❌ None | ❌ None | **✅ Yes (TF-IDF & LLM-guided)** |
+| **Local DOCX/PDF Parsing** | ❌ None | ❌ None | **✅ Yes (Docling & PyMuPDF)** |
+| **Iterative Progress Reporting** | ❌ None | ❌ None | **✅ Yes (MCP `Context.report_progress`)** |
+| **Wired OpenTelemetry Traces** | ❌ None | ❌ None | **✅ Yes (Batch OTel Tracing)** |
+| **Enterprise OAuth 2.1 Security** | ❌ None | ❌ None | **✅ Yes (Remote Introspection Middleware)** |
+| **One-Click Diagnostic CLI** | ❌ None | ❌ None | **✅ Yes (`--doctor` verification)** |
+| **Interactive CLI setup** | ❌ None | ❌ None | **✅ Yes (Automated Configurator)** |
+| **Zero-Configuration Setup** | ❌ None | ⚠️ Complex docker | **✅ Yes (Pure Python / uvx direct)** |
+
+---
+
 ## Install In One Command
 
 | Client | Command |

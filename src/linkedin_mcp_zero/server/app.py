@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import structlog
 from fastmcp import Context, FastMCP
@@ -53,8 +53,10 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     metrics = MetricsStore(settings)
     llm_provider = LLMProvider()
 
-    @app.lifespan()  # type: ignore[type-var]
-    async def lifespan(server: Any) -> AsyncGenerator[None, None]:
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def lifespan_handler(server: FastMCP) -> AsyncGenerator[None, None]:
         yield
         logger.info("Server shutting down, cleaning up engine resources...")
         try:
@@ -65,6 +67,8 @@ def create_app(settings: Settings | None = None) -> FastMCP:
             await browser.close()
         except Exception as e:
             logger.warning("Failed to close browser engine during shutdown", error=str(e))
+
+    app._lifespan = lifespan_handler
 
     READ_ONLY_ANNOTATIONS = {
         "readOnlyHint": True,
@@ -569,7 +573,7 @@ Market data context: {json.dumps(trends)}"""
         """Interactive job search that asks you what matters most."""
         result = await ctx.elicit(
             message="Customize your job search preferences:",
-            response_type=SearchPreferences,  # type: ignore[arg-type]
+            response_type=cast(Any, SearchPreferences),
         )
         if result.action != "accept":
             return {"status": "cancelled", "reason": result.action}
@@ -628,7 +632,7 @@ Market data context: {json.dumps(trends)}"""
         """Export jobs with user confirmation."""
         result = await ctx.elicit(
             message=f"Are you sure you want to export {len(ids)} jobs in {fmt} format?",
-            response_type=ConfirmExportPreferences,  # type: ignore[arg-type]
+            response_type=cast(Any, ConfirmExportPreferences),
         )
         if result.action != "accept":
             return {"status": "cancelled", "reason": "User did not confirm"}
@@ -697,6 +701,18 @@ Provide:
             {
                 "status": "ok",
                 "engines": status_info,
+            }
+        )
+
+    @app.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+    async def oauth_protected_resource(request: Request) -> JSONResponse:
+        """Protected resource metadata endpoint as per RFC 9728."""
+        return JSONResponse(
+            {
+                "resource": f"http://{settings.host}:{settings.port}",
+                "authorization_servers": [settings.oauth_server_url] if settings.oauth_server_url else [],
+                "scopes_supported": ["jobs:read", "profile:read", "alerts:manage"],
+                "bearer_methods_supported": ["header"],
             }
         )
 
