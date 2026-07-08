@@ -126,8 +126,8 @@ def test_print_config_preview() -> None:
     browser = preview_config(extras=["browser"])
     assert browser["mcpServers"]["linkedin-zero"]["args"] == [
         "--from",
-        "mcp-server-linkedin-zero[browser]",
-        "mcp-server-linkedin-zero",
+        "linkedin-mcp-zero[browser]",
+        "linkedin-mcp-zero",
         "--enable-browser",
     ]
 
@@ -162,7 +162,7 @@ def test_verify_client_reports_missing_server(tmp_path: Path) -> None:
 def test_claude_code_command_uses_add_json() -> None:
     command = claude_code_command()
     assert command[:4] == ["claude", "mcp", "add-json", "linkedin-zero"]
-    assert "mcp-server-linkedin-zero" in command[4]
+    assert "linkedin-mcp-zero" in command[4]
 
 
 @pytest.mark.asyncio
