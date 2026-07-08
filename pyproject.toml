@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "linkedin-mcp-zero"
-version = "0.3.0"
+version = "0.3.1"
 description = "Token-optimized, public-first LinkedIn jobs MCP server."
 readme = "README.md"
 requires-python = ">=3.10"

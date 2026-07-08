@@ -139,7 +139,7 @@ def cli() -> None:
             console = Console()
             console.print(
                 "[bold red]ERROR:[/bold red] OAuth dependencies are missing. "
-                "Install them using `pip install mcp-server-linkedin-zero[oauth]`"
+                "Install them using `pip install linkedin-mcp-zero[oauth]`"
             )
             raise SystemExit(1) from None
 
@@ -218,6 +218,6 @@ def _print_doctor(runtime: dict[str, object]) -> None:
         for note in notes:
             console.print(f"  - {note}")
     console.print(
-        'Browser extra fix: uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor',
+        'Browser extra fix: uvx --from "linkedin-mcp-zero[browser]" linkedin-mcp-zero --doctor',
         markup=False,
     )

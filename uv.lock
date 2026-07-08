@@ -1842,6 +1842,100 @@ wheels = [
 ]
 
 [[package]]
+name = "linkedin-mcp-zero"
+version = "0.3.0"
+source = { editable = "." }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "curl-cffi" },
+    { name = "fastmcp" },
+    { name = "httpx" },
+    { name = "lxml" },
+    { name = "platformdirs" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-docx" },
+    { name = "rich" },
+    { name = "selectolax" },
+    { name = "structlog" },
+    { name = "tenacity" },
+]
+
+[package.optional-dependencies]
+ai = [
+    { name = "sentence-transformers" },
+]
+browser = [
+    { name = "patchright" },
+    { name = "playwright" },
+]
+dev = [
+    { name = "bandit" },
+    { name = "hypothesis" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+docling = [
+    { name = "docling" },
+]
+multi = [
+    { name = "python-jobspy" },
+]
+oauth = [
+    { name = "authlib" },
+    { name = "itsdangerous" },
+]
+observability = [
+    { name = "opentelemetry-sdk", version = "1.42.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "opentelemetry-sdk", version = "1.43.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+]
+pdf = [
+    { name = "pymupdf" },
+]
+vectors = [
+    { name = "qdrant-client", version = "1.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "qdrant-client", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "authlib", marker = "extra == 'oauth'", specifier = ">=1.3.0" },
+    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.8" },
+    { name = "beautifulsoup4", specifier = ">=4.12" },
+    { name = "curl-cffi", specifier = ">=0.15.0" },
+    { name = "docling", marker = "extra == 'docling'", specifier = ">=2.110.0" },
+    { name = "fastmcp", specifier = ">=2.0" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
+    { name = "itsdangerous", marker = "extra == 'oauth'", specifier = ">=2.1.2" },
+    { name = "lxml", specifier = ">=5.3" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
+    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.42.1" },
+    { name = "patchright", marker = "extra == 'browser'", specifier = ">=1.49" },
+    { name = "platformdirs", specifier = ">=4.3" },
+    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.49" },
+    { name = "pydantic", specifier = ">=2.10" },
+    { name = "pydantic-settings", specifier = ">=2.7" },
+    { name = "pymupdf", marker = "extra == 'pdf'", specifier = ">=1.25" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1" },
+    { name = "python-docx", specifier = ">=1.1" },
+    { name = "python-jobspy", marker = "extra == 'multi'", specifier = ">=1.1.82" },
+    { name = "qdrant-client", marker = "extra == 'vectors'", specifier = ">=1.12.1" },
+    { name = "rich", specifier = ">=13.9" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
+    { name = "selectolax", specifier = ">=0.4.10" },
+    { name = "sentence-transformers", marker = "extra == 'ai'", specifier = ">=5.6.0" },
+    { name = "structlog", specifier = ">=24.4" },
+    { name = "tenacity", specifier = ">=9.1.4" },
+]
+provides-extras = ["oauth", "ai", "docling", "vectors", "observability", "dev", "multi", "pdf", "browser"]
+
+[[package]]
 name = "lxml"
 version = "6.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2111,100 +2205,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/27/3c/347cf965d313f5d41
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/11/252c6f971dc4f16af1d98a1c469d8ba523aab00d1bb76b4d3bc1ff32eacc/mcp-1.27.2-py3-none-any.whl", hash = "sha256:d6ff5160c6ca65d93013626efb3fc249de683c30b2d8570755ceddd490344de5", size = 220498, upload-time = "2026-05-29T17:16:02.442Z" },
 ]
-
-[[package]]
-name = "mcp-server-linkedin-zero"
-version = "0.2.0"
-source = { editable = "." }
-dependencies = [
-    { name = "beautifulsoup4" },
-    { name = "curl-cffi" },
-    { name = "fastmcp" },
-    { name = "httpx" },
-    { name = "lxml" },
-    { name = "platformdirs" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-docx" },
-    { name = "rich" },
-    { name = "selectolax" },
-    { name = "structlog" },
-    { name = "tenacity" },
-]
-
-[package.optional-dependencies]
-ai = [
-    { name = "sentence-transformers" },
-]
-browser = [
-    { name = "patchright" },
-    { name = "playwright" },
-]
-dev = [
-    { name = "bandit" },
-    { name = "hypothesis" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-docling = [
-    { name = "docling" },
-]
-multi = [
-    { name = "python-jobspy" },
-]
-oauth = [
-    { name = "authlib" },
-    { name = "itsdangerous" },
-]
-observability = [
-    { name = "opentelemetry-sdk", version = "1.42.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "opentelemetry-sdk", version = "1.43.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-]
-pdf = [
-    { name = "pymupdf" },
-]
-vectors = [
-    { name = "qdrant-client", version = "1.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "qdrant-client", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "authlib", marker = "extra == 'oauth'", specifier = ">=1.3.0" },
-    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.8" },
-    { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "curl-cffi", specifier = ">=0.15.0" },
-    { name = "docling", marker = "extra == 'docling'", specifier = ">=2.110.0" },
-    { name = "fastmcp", specifier = ">=2.0" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
-    { name = "itsdangerous", marker = "extra == 'oauth'", specifier = ">=2.1.2" },
-    { name = "lxml", specifier = ">=5.3" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
-    { name = "opentelemetry-sdk", marker = "extra == 'observability'", specifier = ">=1.42.1" },
-    { name = "patchright", marker = "extra == 'browser'", specifier = ">=1.49" },
-    { name = "platformdirs", specifier = ">=4.3" },
-    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.49" },
-    { name = "pydantic", specifier = ">=2.10" },
-    { name = "pydantic-settings", specifier = ">=2.7" },
-    { name = "pymupdf", marker = "extra == 'pdf'", specifier = ">=1.25" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1" },
-    { name = "python-docx", specifier = ">=1.1" },
-    { name = "python-jobspy", marker = "extra == 'multi'", specifier = ">=1.1.82" },
-    { name = "qdrant-client", marker = "extra == 'vectors'", specifier = ">=1.12.1" },
-    { name = "rich", specifier = ">=13.9" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
-    { name = "selectolax", specifier = ">=0.4.10" },
-    { name = "sentence-transformers", marker = "extra == 'ai'", specifier = ">=5.6.0" },
-    { name = "structlog", specifier = ">=24.4" },
-    { name = "tenacity", specifier = ">=9.1.4" },
-]
-provides-extras = ["oauth", "ai", "docling", "vectors", "observability", "dev", "multi", "pdf", "browser"]
 
 [[package]]
 name = "mdurl"

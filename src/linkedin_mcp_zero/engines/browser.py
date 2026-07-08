@@ -223,7 +223,7 @@ class BrowserEngine:
                     **status,
                     "available": False,
                     "reason": "Playwright is not installed inside this MCP runtime.",
-                    "install": ('uvx --from "mcp-server-linkedin-zero[browser]" mcp-server-linkedin-zero --doctor'),
+                    "install": ('uvx --from "linkedin-mcp-zero[browser]" linkedin-mcp-zero --doctor'),
                 }
             if not status.get("available") and can_fallback:
                 status = {

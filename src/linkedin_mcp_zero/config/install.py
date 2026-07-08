@@ -318,10 +318,10 @@ def _uvx_args(
     extras: list[PackageExtra] | None = None,
 ) -> list[str]:
     if source == "github":
-        return ["--from", _github_requirement(extras), "mcp-server-linkedin-zero"]
+        return ["--from", _github_requirement(extras), "linkedin-mcp-zero"]
     if extras:
-        return ["--from", _package_requirement(extras), "mcp-server-linkedin-zero"]
-    return ["mcp-server-linkedin-zero"]
+        return ["--from", _package_requirement(extras), "linkedin-mcp-zero"]
+    return ["linkedin-mcp-zero"]
 
 
 def _config_key(client: ClientName) -> str:
@@ -333,15 +333,15 @@ def _config_key(client: ClientName) -> str:
 def _package_requirement(extras: list[PackageExtra] | None = None) -> str:
     clean = _clean_extras(extras)
     if not clean:
-        return "mcp-server-linkedin-zero"
-    return f"mcp-server-linkedin-zero[{','.join(clean)}]"
+        return "linkedin-mcp-zero"
+    return f"linkedin-mcp-zero[{','.join(clean)}]"
 
 
 def _github_requirement(extras: list[PackageExtra] | None = None) -> str:
     clean = _clean_extras(extras)
     if not clean:
         return GITHUB_URL
-    return f"mcp-server-linkedin-zero[{','.join(clean)}] @ {GITHUB_URL}"
+    return f"linkedin-mcp-zero[{','.join(clean)}] @ {GITHUB_URL}"
 
 
 def _clean_extras(extras: list[PackageExtra] | None = None) -> list[str]:
