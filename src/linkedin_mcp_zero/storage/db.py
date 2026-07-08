@@ -59,7 +59,7 @@ class Storage:
                 "INSERT INTO resumes(path, data) VALUES (?, ?)",
                 (path, json.dumps(data, ensure_ascii=True)),
             )
-            return int(cur.lastrowid)
+            return cur.lastrowid if cur.lastrowid is not None else 0
 
     def get_resume(self, resume_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
@@ -72,7 +72,7 @@ class Storage:
                 "INSERT INTO alerts(name, kw, loc, freq) VALUES (?, ?, ?, ?)",
                 (name, kw, loc, freq),
             )
-            alert_id = int(cur.lastrowid)
+            alert_id = cur.lastrowid if cur.lastrowid is not None else 0
         return {
             "id": alert_id,
             "name": name,
@@ -96,7 +96,7 @@ class Storage:
                     raise ValueError(f"Invalid alert IDs: {ids}") from e
                 marks = ",".join("?" for _ in coerced_ids)
                 rows = conn.execute(
-                    f"SELECT * FROM alerts WHERE id IN ({marks}) ORDER BY id",
+                    f"SELECT * FROM alerts WHERE id IN ({marks}) ORDER BY id",  # nosec B608
                     tuple(coerced_ids),
                 ).fetchall()
             else:

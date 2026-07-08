@@ -21,6 +21,7 @@ from linkedin_mcp_zero.utils.compress import (
     truncate,
 )
 from linkedin_mcp_zero.utils.errors import ParseError, UpstreamError
+from linkedin_mcp_zero.utils.telemetry import trace_span
 
 logger = structlog.get_logger()
 
@@ -38,14 +39,14 @@ JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=|jobPosting/|[-_])(\d{6,})")
 class GuestAPIClient:
     def __init__(self, timeout: float = 15) -> None:
         self.timeout = timeout
-        self._session: AsyncSession | None = None
+        self._session: AsyncSession[Any] | None = None
         self.circuit_breaker = CircuitBreaker()
 
-    async def _get_session(self) -> AsyncSession:
+    async def _get_session(self) -> AsyncSession[Any]:
         if self._session is None:
             ua = random.choice(USER_AGENTS)
             self._session = AsyncSession(
-                impersonate="chrome128",
+                impersonate="chrome128",  # type: ignore[arg-type]
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
                 timeout=self.timeout,
             )
@@ -56,6 +57,7 @@ class GuestAPIClient:
             await self._session.close()
             self._session = None
 
+    @trace_span("guest_api.search_jobs")
     async def search_jobs(
         self,
         kw: str,
@@ -121,6 +123,7 @@ class GuestAPIClient:
                 break
         return rows[:limit]
 
+    @trace_span("guest_api.get_job_details")
     async def get_job_details(self, job_id_or_url: str) -> dict[str, object]:
         self.circuit_breaker.check()
         job_id = extract_job_id(job_id_or_url)
@@ -223,7 +226,7 @@ def _first_text(node: Any, selectors: list[str]) -> str:
     for selector in selectors:
         found = node.css_first(selector)
         if found:
-            return found.text(deep=True)
+            return str(found.text(deep=True))
     return ""
 
 
@@ -267,7 +270,7 @@ def _salary(value: object) -> str:
 
 def _money(value: object) -> str:
     try:
-        number = float(value)
+        number = float(str(value))
     except (TypeError, ValueError):
         return clean_text(str(value))
     if number >= 1000:

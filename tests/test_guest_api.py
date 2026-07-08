@@ -68,3 +68,34 @@ def test_parse_job_detail_schema() -> None:
     assert result["type"] == "FT"
     assert "Python" in result["skills"]
     assert "Kubernetes" in result["skills"]
+
+
+# Mock HTTP for Guest API tests
+import pytest
+from unittest.mock import AsyncMock, patch
+from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
+
+@pytest.mark.asyncio
+async def test_search_jobs_parses_results() -> None:
+    mock_html = """<div class="base-card">
+        <h3 class="base-search-card__title">Python Dev</h3>
+        <h4 class="base-search-card__subtitle">Google</h4>
+        <span class="job-search-card__location">Remote</span>
+        <a class="base-card__full-link" href="https://linkedin.com/jobs/view/123456789"></a>
+        <time datetime="2026-07-01"></time>
+    </div>"""
+    
+    with patch("curl_cffi.requests.AsyncSession") as MockSession:
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = mock_html
+        mock_session = AsyncMock()
+        mock_session.get = AsyncMock(return_value=mock_resp)
+        MockSession.return_value = mock_session
+        
+        client = GuestAPIClient()
+        client._session = mock_session
+        results = await client.search_jobs("python", limit=1)
+        assert len(results) == 1
+        assert results[0]["t"] == "Python Dev"
+

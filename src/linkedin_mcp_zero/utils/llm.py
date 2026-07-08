@@ -20,7 +20,7 @@ class LLMProvider:
                     messages=prompt,
                     system_prompt=system_prompt,
                 )
-                return result.text
+                return result.text or ""
             except Exception as e:
                 logger.warning("LLM client sampling failed, falling back to local analysis", error=str(e))
 

@@ -127,7 +127,7 @@ def verify_client_config(
             output = (completed.stdout or completed.stderr or "").strip()
             list_ok = completed.returncode == 0 and SERVER_NAME in output
             list_detail = output or f"exit {completed.returncode}"
-        checks = [
+        claude_checks = [
             {"name": "claude_cli_found", "ok": bool(claude), "detail": claude or "not found"},
             {
                 "name": "claude_mcp_list_contains_linkedin_zero",
@@ -137,9 +137,9 @@ def verify_client_config(
         ]
         return VerifyResult(
             client=client,
-            ok=all(bool(check["ok"]) for check in checks),
+            ok=all(bool(check["ok"]) for check in claude_checks),
             path=None,
-            checks=checks,
+            checks=claude_checks,
             repair_hint=("Install Claude Code CLI, then run `linkedin-mcp-zero --install-client claude-code`."),
         )
 

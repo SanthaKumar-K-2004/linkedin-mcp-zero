@@ -21,6 +21,17 @@ except ImportError:
 _tracer = None
 
 
+def get_tracer() -> Any:
+    global _tracer
+    if OPENTELEMETRY_AVAILABLE and _tracer is None:
+        try:
+            from opentelemetry import trace
+            _tracer = trace.get_tracer("linkedin-mcp-zero")
+        except Exception:
+            pass
+    return _tracer
+
+
 def init_telemetry() -> None:
     """Initialize OpenTelemetry tracer with console exporter."""
     global _tracer
@@ -36,10 +47,15 @@ def init_telemetry() -> None:
             logger.warning("Failed to initialize OpenTelemetry tracing", error=str(e))
 
 
-def trace_span(name: str) -> Callable[..., Any]:
+from typing import TypeVar
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def trace_span(name: str) -> Callable[[F], F]:
     """Decorator to trace a synchronous or asynchronous function."""
 
-    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(fn: F) -> F:
         if not OPENTELEMETRY_AVAILABLE or _tracer is None:
             return fn
 
@@ -50,7 +66,7 @@ def trace_span(name: str) -> Callable[..., Any]:
                 with _tracer.start_as_current_span(name):
                     return await fn(*args, **kwargs)
 
-            return async_wrapper
+            return async_wrapper  # type: ignore[return-value]
         else:
 
             @wraps(fn)
@@ -58,6 +74,6 @@ def trace_span(name: str) -> Callable[..., Any]:
                 with _tracer.start_as_current_span(name):
                     return fn(*args, **kwargs)
 
-            return sync_wrapper
+            return sync_wrapper  # type: ignore[return-value]
 
     return decorator

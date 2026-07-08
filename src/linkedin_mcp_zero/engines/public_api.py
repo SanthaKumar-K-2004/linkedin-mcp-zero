@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import structlog
 
 from linkedin_mcp_zero.cache.ttl_cache import TTLCache
@@ -113,7 +115,7 @@ class PublicAPIEngine:
 
     async def search_companies(self, kw: str, limit: int = 10) -> list[dict[str, object]]:
         jobs = await self.search_jobs(kw=kw, limit=min(max(limit * 2, 5), 50))
-        seen: dict[str, dict[str, object]] = {}
+        seen: dict[str, dict[str, Any]] = {}
         for job in jobs:
             company = str(job.get("co", "")).strip()
             if not company:
@@ -179,9 +181,11 @@ class PublicAPIEngine:
                         error=str(e),
                     )
                     details = {}
-                for skill in details.get("skills", []):
-                    text = str(skill)
-                    skill_counts[text] = skill_counts.get(text, 0) + 1
+                skills = details.get("skills")
+                if isinstance(skills, list):
+                    for skill in skills:
+                        text = str(skill)
+                        skill_counts[text] = skill_counts.get(text, 0) + 1
         return {
             "industry": ind,
             "sample": len(jobs),

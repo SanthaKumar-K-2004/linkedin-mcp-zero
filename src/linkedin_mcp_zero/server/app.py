@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Literal
+from typing import Literal, Any, AsyncGenerator
 
 import structlog
 from fastmcp import Context, FastMCP
@@ -21,6 +21,7 @@ from linkedin_mcp_zero.metrics.tracking import track_async_tool, track_sync_tool
 from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.llm import LLMProvider
+from linkedin_mcp_zero.utils.telemetry import init_telemetry
 
 logger = structlog.get_logger()
 
@@ -40,6 +41,7 @@ class ConfirmExportPreferences(BaseModel):
 
 def create_app(settings: Settings | None = None) -> FastMCP:
     settings = settings or Settings()
+    init_telemetry()
     app = FastMCP("linkedin-mcp-zero")
     storage = Storage(settings)
     public = PublicAPIEngine(settings)
@@ -50,8 +52,8 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     metrics = MetricsStore(settings)
     llm_provider = LLMProvider()
 
-    @app.lifespan()
-    async def lifespan(server):
+    @app.lifespan()  # type: ignore[type-var]
+    async def lifespan(server: Any) -> AsyncGenerator[None, None]:
         yield
         logger.info("Server shutting down, cleaning up engine resources...")
         try:
@@ -63,15 +65,38 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         except Exception as e:
             logger.warning("Failed to close browser engine during shutdown", error=str(e))
 
-    def async_tool(engine: str):
-        def decorator(fn):
-            return app.tool()(track_async_tool(fn, store=metrics, settings=settings, engine=engine))
+    READ_ONLY_ANNOTATIONS = {
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "openWorldHint": True,
+        "idempotentHint": True,
+    }
+
+    WRITE_ANNOTATIONS = {
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "openWorldHint": False,
+        "idempotentHint": True,
+    }
+
+    DESTRUCTIVE_ANNOTATIONS = {
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "openWorldHint": False,
+        "idempotentHint": False,
+    }
+
+    def async_tool(engine: str, annotations: dict[str, Any] | None = None) -> Any:
+        ann = annotations or READ_ONLY_ANNOTATIONS
+        def decorator(fn: Any) -> Any:
+            return app.tool(annotations=ann)(track_async_tool(fn, store=metrics, settings=settings, engine=engine))
 
         return decorator
 
-    def sync_tool(engine: str):
-        def decorator(fn):
-            return app.tool()(track_sync_tool(fn, store=metrics, settings=settings, engine=engine))
+    def sync_tool(engine: str, annotations: dict[str, Any] | None = None) -> Any:
+        ann = annotations or READ_ONLY_ANNOTATIONS
+        def decorator(fn: Any) -> Any:
+            return app.tool(annotations=ann)(track_sync_tool(fn, store=metrics, settings=settings, engine=engine))
 
         return decorator
 
@@ -178,12 +203,12 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Compare 2-5 public LinkedIn jobs."""
         return await matching.compare_jobs(ids)
 
-    @async_tool("local")
+    @async_tool("local", annotations=WRITE_ANNOTATIONS)
     async def export_jobs(ids: list[str], fmt: Literal["csv", "json", "xlsx"] = "csv") -> dict[str, object]:
         """Export public job details to a local file."""
         return await matching.export_jobs(ids, fmt)
 
-    @sync_tool("local")
+    @sync_tool("local", annotations=WRITE_ANNOTATIONS)
     def save_job_alert(
         name: str,
         kw: str,
@@ -359,7 +384,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Show tool documentation."""
         return tool_help(tool)
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_usage_stats(limit: int = 50) -> dict[str, object]:
         """Show recent local MCP usage and token estimates."""
         return {
@@ -373,7 +398,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
             "token_count_model": settings.token_count_model,
         }
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     def get_tool_usage_summary() -> dict[str, object]:
         """Show local aggregate MCP usage by tool."""
         summary = metrics.summary()
@@ -381,7 +406,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         summary["exact_count_external_send"] = bool(settings.exact_token_count and settings.anthropic_api_key)
         return summary
 
-    @app.tool()
+    @app.tool(annotations=DESTRUCTIVE_ANNOTATIONS)
     def reset_usage_stats(confirm: bool = False) -> dict[str, object]:
         """Reset local usage metrics."""
         if not confirm:
@@ -469,7 +494,7 @@ For each job found:
 5. Suggest questions I should ask based on their hiring patterns"""
 
     # --- Week 2-4 MCP Sampling & Elicitation Tools ---
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def smart_match_jobs(resume_id: int, ctx: Context) -> dict[str, object]:
         """AI-powered job matching using the client's LLM for reasoning."""
         resume = storage.get_resume(resume_id)
@@ -495,7 +520,7 @@ Return a concise summary with match scores."""
         )
         return {"analysis": result.text, "jobs_analyzed": len(jobs)}
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def generate_cover_letter(job_id: str, resume_id: int, ctx: Context) -> dict[str, object]:
         """Generate a tailored cover letter using the client's LLM."""
         job = await public.get_job_details(job_id)
@@ -505,11 +530,11 @@ Return a concise summary with match scores."""
 
         prompt = f"""Write a concise, compelling cover letter (max 200 words) for:
 JOB: {job.get("t")} at {job.get("co")}
-Requirements: {job.get("desc", "")[:500]}
+Requirements: {str(job.get("desc") or "")[:500]}
 CANDIDATE:
 Name: {resume.get("name")}
-Skills: {", ".join(resume.get("skills", []))}
-Experience: {resume.get("summary", "")[:300]}"""
+Skills: {", ".join(str(s) for s in resume.get("skills") or [])}
+Experience: {str(resume.get("summary") or "")[:300]}"""
 
         result = await ctx.sample(
             messages=prompt,
@@ -517,13 +542,13 @@ Experience: {resume.get("summary", "")[:300]}"""
         )
         return {"cover_letter": result.text}
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def analyze_salary_offer(job_id: str, ctx: Context) -> dict[str, object]:
         """AI-powered salary analysis using real market data and client's LLM."""
         job = await public.get_job_details(job_id)
         trends = {}
         if hasattr(public, "get_job_trends"):
-            trends = await public.get_job_trends(job.get("t", ""), job.get("loc", ""))
+            trends = await public.get_job_trends(str(job.get("t") or ""), str(job.get("loc") or ""))
 
         prompt = f"""Analyze this job's compensation:
 Job: {job.get("t")} at {job.get("co")} in {job.get("loc")}
@@ -536,17 +561,17 @@ Market data context: {json.dumps(trends)}"""
         )
         return {"job_id": job_id, "analysis": result.text}
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def personalized_job_hunt(kw: str, ctx: Context) -> dict[str, object]:
         """Interactive job search that asks you what matters most."""
         result = await ctx.elicit(
             message="Customize your job search preferences:",
-            response_type=SearchPreferences,
+            response_type=SearchPreferences,  # type: ignore[arg-type]
         )
         if result.action != "accept":
             return {"status": "cancelled", "reason": result.action}
 
-        prefs = result.data
+        prefs: Any = result.data
         jobs = await public.search_jobs(kw, limit=25)
 
         import asyncio
@@ -557,8 +582,8 @@ Market data context: {json.dumps(trends)}"""
 
         filtered = []
         for job, detail_res in zip(jobs_with_ids, results, strict=True):
-            job_detail = {}
-            if not isinstance(detail_res, Exception):
+            job_detail: dict[str, Any] = {}
+            if not isinstance(detail_res, BaseException):
                 job_detail = detail_res
 
             merged_job = {**job, **job_detail}
@@ -595,19 +620,22 @@ Market data context: {json.dumps(trends)}"""
 
         return {"jobs": filtered[:10], "prefs_applied": prefs.model_dump()}
 
-    @app.tool()
+    @app.tool(annotations=WRITE_ANNOTATIONS)
     async def confirm_export(ids: list[str], fmt: str, ctx: Context) -> dict[str, object]:
         """Export jobs with user confirmation."""
         result = await ctx.elicit(
             message=f"Are you sure you want to export {len(ids)} jobs in {fmt} format?",
-            response_type=ConfirmExportPreferences,
+            response_type=ConfirmExportPreferences,  # type: ignore[arg-type]
         )
-        if result.action != "accept" or not result.data.confirm:
+        if result.action != "accept":
+            return {"status": "cancelled", "reason": "User did not confirm"}
+        confirm_data: Any = result.data
+        if not confirm_data.confirm:
             return {"status": "cancelled", "reason": "User did not confirm"}
 
         return await matching.export_jobs(ids, fmt)
 
-    @app.tool()
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def get_resume_insights_advanced(id: int, ctx: Context) -> dict[str, object]:
         """Get advanced AI-powered insights on a resume using LLM reasoning."""
         resume_data = storage.get_resume(id)
@@ -631,6 +659,43 @@ Provide:
             ctx=ctx,
         )
         return {"id": id, "insights": analysis}
+
+    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
+    async def deep_industry_analysis(industry: str, ctx: Context) -> dict[str, object]:
+        """Full industry analysis with progress updates."""
+        jobs = await public.search_jobs(kw=industry, limit=10)
+
+        analyzed = []
+        for i, job in enumerate(jobs[:5]):
+            await ctx.report_progress(
+                progress=i + 1,
+                total=5,
+                message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
+            )
+            job_id = job.get("id")
+            if job_id:
+                try:
+                    detail = await public.get_job_details(str(job_id))
+                    analyzed.append(detail)
+                except Exception:
+                    analyzed.append(job)
+            else:
+                analyzed.append(job)
+
+        summary = f"Analyzed {len(analyzed)} jobs in the {industry} industry."
+        return {"summary": summary, "jobs": analyzed}
+
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+
+    @app.custom_route("/health", methods=["GET"])
+    async def health(request: Request) -> JSONResponse:
+        """Health check endpoint for streamable-http deployment."""
+        status_info = await browser.status()
+        return JSONResponse({
+            "status": "ok",
+            "engines": status_info,
+        })
 
     return app
 

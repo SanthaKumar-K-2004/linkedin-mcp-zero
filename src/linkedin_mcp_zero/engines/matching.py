@@ -80,7 +80,7 @@ class MatchingEngine:
         skills = set(resume.get("skills", []))
         search_kw = kw or " ".join(list(skills)[:3]) or "software engineer"
         jobs = await self.public.search_jobs(search_kw, loc=loc, limit=limit)
-        matches = []
+        matches: list[dict[str, Any]] = []
         for job in jobs:
             detail = {}
             if job.get("id"):
@@ -124,20 +124,21 @@ class MatchingEngine:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         rows = []
         for job_id, result in zip(ids[:5], results, strict=True):
-            if isinstance(result, Exception):
-                logger.warning("Failed to fetch job details for comparison", job_id=job_id, error=str(result))
-                rows.append(["ERROR", f"Failed to load job {job_id}", "", "", "", ""])
-            else:
+            if isinstance(result, dict):
                 rows.append(
                     [
-                        result.get("co", ""),
-                        result.get("t", ""),
-                        result.get("sal", ""),
-                        result.get("loc", ""),
-                        result.get("type", ""),
-                        result.get("url", ""),
+                        str(result.get("co") or ""),
+                        str(result.get("t") or ""),
+                        str(result.get("sal") or ""),
+                        str(result.get("loc") or ""),
+                        str(result.get("type") or ""),
+                        str(result.get("url") or ""),
                     ]
                 )
+            else:
+                err_str = str(result) if result is not None else "Unknown error"
+                logger.warning("Failed to fetch job details for comparison", job_id=job_id, error=err_str)
+                rows.append(["ERROR", f"Failed to load job {job_id}", "", "", "", ""])
         return {"columns": ["Company", "Title", "Salary", "Location", "Type", "URL"], "rows": rows}
 
     async def export_jobs(self, ids: list[str], fmt: str = "csv") -> dict[str, Any]:
@@ -147,10 +148,11 @@ class MatchingEngine:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         jobs = []
         for job_id, result in zip(ids, results, strict=True):
-            if isinstance(result, Exception):
-                logger.warning("Failed to fetch job details for export", job_id=job_id, error=str(result))
-            else:
+            if isinstance(result, dict):
                 jobs.append(result)
+            else:
+                err_str = str(result) if result is not None else "Unknown error"
+                logger.warning("Failed to fetch job details for export", job_id=job_id, error=err_str)
 
         fmt = fmt.lower()
         path = self.storage.exports_dir / f"jobs_export.{fmt}"

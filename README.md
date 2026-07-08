@@ -18,6 +18,8 @@ No Docker required · Claude Desktop ready · Claude Code ready · Low-RAM frien
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-stdio%20%7C%20http-purple)](https://modelcontextprotocol.io/)
+[![codecov](https://codecov.io/gh/SanthaKumar-K-2004/linkedin-mcp-zero/branch/main/graph/badge.svg)](https://codecov.io/gh/SanthaKumar-K-2004/linkedin-mcp-zero)
+[![mypy](https://img.shields.io/badge/mypy-strict-blue)](https://mypy-lang.org/)
 
 </div>
 

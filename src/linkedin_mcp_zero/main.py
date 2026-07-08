@@ -19,6 +19,7 @@ from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.server.app import create_app
 from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.utils.logging import configure_logging
+from linkedin_mcp_zero.utils.oauth import OAuthMiddleware, oauth
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -109,18 +110,18 @@ def cli() -> None:
         )
         return
     if args.install_client:
-        result = install_client_config(
+        install_res = install_client_config(
             args.install_client,
             path=args.config_path,
             source=args.package_source,
             extras=extras,
             enable_browser=settings.enable_browser,
         )
-        Console().print_json(json.dumps(result.__dict__, default=str))
+        Console().print_json(json.dumps(install_res.__dict__, default=str))
         return
     if args.verify_client:
-        result = verify_client_config(args.verify_client, path=args.config_path)
-        Console().print_json(json.dumps(result.__dict__, default=str))
+        verify_res = verify_client_config(args.verify_client, path=args.config_path)
+        Console().print_json(json.dumps(verify_res.__dict__, default=str))
         return
 
     DISCLAIMER = (
@@ -133,6 +134,18 @@ def cli() -> None:
 
     app = create_app(settings)
     if settings.transport == "streamable-http":
+        from starlette.requests import Request
+        from starlette.responses import JSONResponse
+
+        @app.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+        async def oauth_protected_resource(request: Request) -> JSONResponse:
+            return JSONResponse({
+                "resource": f"http://{settings.host}:{settings.port}",
+                "authorization_servers": [settings.oauth_server_url] if settings.oauth_server_url else [],
+                "scopes_supported": ["jobs:read", "profile:read", "alerts:manage"],
+                "bearer_methods_supported": ["header"],
+            })
+
         api_key = settings.api_key
         if not api_key:
             api_key = secrets.token_hex(16)
@@ -154,6 +167,11 @@ def cli() -> None:
                 allow_credentials=allow_creds,
                 allow_methods=["*"],
                 allow_headers=["*"],
+            ),
+            Middleware(
+                OAuthMiddleware,
+                oauth_config=oauth,
+                settings=settings,
             ),
             Middleware(
                 APIKeyAndRateLimitMiddleware,
@@ -192,7 +210,7 @@ def _print_doctor(runtime: dict[str, object]) -> None:
         console.print("Optional packages:")
         for name, available in optional.items():
             console.print(f"  {'OK' if available else 'NO'} {name}")
-    if notes:
+    if isinstance(notes, list):
         console.print("Notes:")
         for note in notes:
             console.print(f"  - {note}")

@@ -58,7 +58,7 @@ class ResumeEngine:
             allowed = [
                 Path.home() / "Documents",
                 Path.home() / "Downloads",
-                Path("/tmp"),
+                Path("/tmp"),  # nosec B108
             ]
             if settings.data_dir:
                 allowed.append(Path(settings.data_dir).expanduser().resolve())
@@ -113,7 +113,7 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
         allowed_dirs = [
             Path.home() / "Documents",
             Path.home() / "Downloads",
-            Path("/tmp"),
+            Path("/tmp"),  # nosec B108
             Path.cwd().resolve(),
         ]
 
@@ -144,7 +144,7 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
             try:
                 converter = DocumentConverter()
                 result = converter.convert(str(file))
-                return result.document.export_to_markdown()
+                return str(result.document.export_to_markdown())
             except Exception as exc:
                 logger.warning("Docling docx conversion failed, falling back to python-docx", error=str(exc))
         document = Document(str(file))
@@ -154,11 +154,11 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
             try:
                 converter = DocumentConverter()
                 result = converter.convert(str(file))
-                return result.document.export_to_markdown()
+                return str(result.document.export_to_markdown())
             except Exception as exc:
                 logger.warning("Docling pdf conversion failed, falling back to pymupdf", error=str(exc))
         try:
-            import fitz  # type: ignore[import-not-found]
+            import fitz
         except ImportError:
             return "PDF support requires optional dependency: uv sync --extra pdf or pip install pymupdf"
         with fitz.open(str(file)) as doc:

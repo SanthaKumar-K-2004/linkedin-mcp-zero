@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 import pytest
 
@@ -120,3 +120,36 @@ async def test_concurrent_compare_and_export(tmp_path: Path) -> None:
     exp = await engine.export_jobs(["123"], fmt="json")
     assert exp["count"] == 1
     assert "jobs_export.json" in exp["path"]
+
+
+from unittest.mock import patch
+
+@pytest.mark.anyio
+async def test_deep_industry_analysis_progress() -> None:
+    from mcp.server.fastmcp import Context
+    
+    app = create_app()
+    
+    # Assert tool is registered
+    tools = [t.name for t in await app.list_tools()]
+    assert "deep_industry_analysis" in tools
+    
+    mock_ctx = MagicMock(spec=Context)
+    mock_ctx.report_progress = AsyncMock()
+    
+    mock_job = {"id": "123", "t": "Software Engineer", "co": "TestCo"}
+    with patch("linkedin_mcp_zero.engines.public_api.PublicAPIEngine.search_jobs", new_callable=AsyncMock) as mock_search, \
+         patch("linkedin_mcp_zero.engines.public_api.PublicAPIEngine.get_job_details", new_callable=AsyncMock) as mock_detail:
+        mock_search.return_value = [mock_job]
+        mock_detail.return_value = {"id": "123", "t": "Software Engineer", "co": "TestCo", "desc": "Requirements"}
+        
+        tool = next(t for t in await app.list_tools() if t.name == "deep_industry_analysis")
+        result = await tool.fn("Software", mock_ctx)
+        
+        assert "Analyzed 1 jobs" in result["summary"]
+        mock_ctx.report_progress.assert_called_once_with(
+            progress=1,
+            total=5,
+            message="Analyzing: Software Engineer at TestCo"
+        )
+

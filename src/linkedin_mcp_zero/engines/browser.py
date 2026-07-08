@@ -457,7 +457,8 @@ async def _extract_text_blocks(
         if not text or text in seen:
             continue
         seen.add(text)
-        rows.append(compact_dict({"text": text, "url": clean_text(str(item.get("url", "")))}))
+        compacted = compact_dict({"text": text, "url": clean_text(str(item.get("url", "")))})
+        rows.append({k: str(v) for k, v in compacted.items()})
         if len(rows) >= limit:
             break
     return rows
@@ -490,7 +491,8 @@ async def _extract_people_links(
             continue
         seen.add(url)
         name = truncate(str(item.get("name", "")), 120)
-        rows.append(compact_dict({"name": name, "url": url}))
+        compacted = compact_dict({"name": name, "url": url})
+        rows.append({k: str(v) for k, v in compacted.items()})
         if len(rows) >= limit:
             break
     return rows

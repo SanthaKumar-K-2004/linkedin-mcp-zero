@@ -15,6 +15,7 @@ import structlog
 
 from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.metrics.store import MetricsStore
+from linkedin_mcp_zero.utils.telemetry import get_tracer
 
 logger = structlog.get_logger()
 
@@ -47,10 +48,20 @@ def track_async_tool(
         result: Any = None
         success = False
         error_type: str | None = None
+        tracer = get_tracer()
         try:
-            result = await func(*args, **kwargs)
-            success = True
-            return result
+            if tracer is not None:
+                with tracer.start_as_current_span(f"tool.{tool_name or func.__name__}") as span:
+                    span.set_attribute("tool.engine", engine)
+                    span.set_attribute("tool.args", str(kwargs)[:200])
+                    result = await func(*args, **kwargs)
+                    success = True
+                    span.set_attribute("tool.success", True)
+                    return result
+            else:
+                result = await func(*args, **kwargs)
+                success = True
+                return result
         except Exception as exc:
             error_type = type(exc).__name__
             raise
@@ -85,10 +96,20 @@ def track_sync_tool(
         result: Any = None
         success = False
         error_type: str | None = None
+        tracer = get_tracer()
         try:
-            result = func(*args, **kwargs)
-            success = True
-            return result
+            if tracer is not None:
+                with tracer.start_as_current_span(f"tool.{tool_name or func.__name__}") as span:
+                    span.set_attribute("tool.engine", engine)
+                    span.set_attribute("tool.args", str(kwargs)[:200])
+                    result = func(*args, **kwargs)
+                    success = True
+                    span.set_attribute("tool.success", True)
+                    return result
+            else:
+                result = func(*args, **kwargs)
+                success = True
+                return result
         except Exception as exc:
             error_type = type(exc).__name__
             raise

@@ -86,7 +86,7 @@ class MetricsStore:
                     tokens_estimated,
                 ),
             )
-            return int(cur.lastrowid)
+            return cur.lastrowid if cur.lastrowid is not None else 0
 
     def update_exact_tokens(self, row_id: int, tokens: int) -> None:
         with self._connect() as conn:

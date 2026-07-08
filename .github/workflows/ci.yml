@@ -33,5 +33,16 @@ jobs:
       - name: Run Ruff format
         run: uv run ruff format --check .
 
-      - name: Run pytest
-        run: uv run pytest
+      - name: Run Bandit Security Scan
+        run: uv run bandit -r src/ -x tests -ll
+
+      - name: Run mypy
+        run: uv run mypy src/
+
+      - name: Run pytest with coverage
+        run: uv run pytest --cov=linkedin_mcp_zero --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

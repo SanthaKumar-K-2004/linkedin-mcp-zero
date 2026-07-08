@@ -181,7 +181,7 @@ async def test_browser_tools_are_hidden_by_default(tmp_path: Path) -> None:
     assert "get_my_profile" not in names
     assert "get_profile_voyager" not in names
     assert "get_usage_stats" in names
-    assert len(tools) == 29
+    assert len(tools) == 30
 
 
 @pytest.mark.asyncio
