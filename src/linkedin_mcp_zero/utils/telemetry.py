@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import inspect
+import os
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, TypeVar
 
 import structlog
 
@@ -26,6 +27,7 @@ def get_tracer() -> Any:
     if OPENTELEMETRY_AVAILABLE and _tracer is None:
         try:
             from opentelemetry import trace
+
             _tracer = trace.get_tracer("linkedin-mcp-zero")
         except Exception:
             pass
@@ -34,6 +36,9 @@ def get_tracer() -> Any:
 
 def init_telemetry() -> None:
     """Initialize OpenTelemetry tracer with console exporter."""
+    if not os.environ.get("LINKEDIN_MCP_ENABLE_TELEMETRY"):
+        return
+
     global _tracer
     if OPENTELEMETRY_AVAILABLE:
         try:
@@ -46,8 +51,6 @@ def init_telemetry() -> None:
         except Exception as e:
             logger.warning("Failed to initialize OpenTelemetry tracing", error=str(e))
 
-
-from typing import TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
 

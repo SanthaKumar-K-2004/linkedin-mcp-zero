@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from linkedin_mcp_zero.utils.llm import LLMProvider
+
 
 @pytest.mark.asyncio
 async def test_llm_provider_fallback() -> None:
@@ -11,12 +14,14 @@ async def test_llm_provider_fallback() -> None:
     assert "John Doe" in result
     assert "Python" in result
 
+
 @pytest.mark.asyncio
 async def test_llm_provider_no_skills_fallback() -> None:
     provider = LLMProvider()
     prompt = "Just some text without structured skills"
     result = await provider.generate(prompt)
     assert "[Local Fallback Analysis]" in result
+
 
 @pytest.mark.asyncio
 async def test_llm_provider_sampling() -> None:

@@ -19,7 +19,6 @@ from linkedin_mcp_zero.config.settings import Settings
 from linkedin_mcp_zero.server.app import create_app
 from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.utils.logging import configure_logging
-from linkedin_mcp_zero.utils.oauth import OAuthMiddleware, oauth
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -137,14 +136,26 @@ def cli() -> None:
         from starlette.requests import Request
         from starlette.responses import JSONResponse
 
+        try:
+            from linkedin_mcp_zero.utils.oauth import OAuthMiddleware, oauth
+        except ImportError:
+            console = Console()
+            console.print(
+                "[bold red]ERROR:[/bold red] OAuth dependencies are missing. "
+                "Install them using `pip install mcp-server-linkedin-zero[oauth]`"
+            )
+            raise SystemExit(1) from None
+
         @app.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
         async def oauth_protected_resource(request: Request) -> JSONResponse:
-            return JSONResponse({
-                "resource": f"http://{settings.host}:{settings.port}",
-                "authorization_servers": [settings.oauth_server_url] if settings.oauth_server_url else [],
-                "scopes_supported": ["jobs:read", "profile:read", "alerts:manage"],
-                "bearer_methods_supported": ["header"],
-            })
+            return JSONResponse(
+                {
+                    "resource": f"http://{settings.host}:{settings.port}",
+                    "authorization_servers": [settings.oauth_server_url] if settings.oauth_server_url else [],
+                    "scopes_supported": ["jobs:read", "profile:read", "alerts:manage"],
+                    "bearer_methods_supported": ["header"],
+                }
+            )
 
         api_key = settings.api_key
         if not api_key:
@@ -160,6 +171,12 @@ def cli() -> None:
         if "*" in cors_origins:
             allow_creds = False
 
+        # Note on Starlette middleware execution order:
+        # In Starlette, the middleware stack is evaluated in reverse order (bottom-up).
+        # Therefore, incoming requests execute in the following sequence:
+        # 1. APIKeyAndRateLimitMiddleware (validates API key or Bearer token API key)
+        # 2. OAuthMiddleware (validates Bearer token against OAuth 2.1 auth server if enabled)
+        # 3. CORSMiddleware (evaluates CORS headers)
         middleware_list = [
             Middleware(
                 CORSMiddleware,

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Literal, Any, AsyncGenerator
+from collections.abc import AsyncGenerator
+from typing import Any, Literal
 
 import structlog
 from fastmcp import Context, FastMCP
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
     def async_tool(engine: str, annotations: dict[str, Any] | None = None) -> Any:
         ann = annotations or READ_ONLY_ANNOTATIONS
+
         def decorator(fn: Any) -> Any:
             return app.tool(annotations=ann)(track_async_tool(fn, store=metrics, settings=settings, engine=engine))
 
@@ -95,6 +97,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
     def sync_tool(engine: str, annotations: dict[str, Any] | None = None) -> Any:
         ann = annotations or READ_ONLY_ANNOTATIONS
+
         def decorator(fn: Any) -> Any:
             return app.tool(annotations=ann)(track_sync_tool(fn, store=metrics, settings=settings, engine=engine))
 
@@ -317,7 +320,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     async def get_engine_status() -> dict[str, object]:
         """Show available engines."""
         browser_status = await browser.status()
-        registered_count = len(await app.list_tools())
+        registered_count = sum(1 for k in app.local_provider._components if k.startswith("tool:"))
         return {
             "tool_count": registered_count,
             "catalog_tool_count": len(TOOLS),
@@ -668,9 +671,7 @@ Provide:
         analyzed = []
         for i, job in enumerate(jobs[:5]):
             await ctx.report_progress(
-                progress=i + 1,
-                total=5,
-                message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
+                progress=i + 1, total=5, message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
             )
             job_id = job.get("id")
             if job_id:
@@ -692,10 +693,12 @@ Provide:
     async def health(request: Request) -> JSONResponse:
         """Health check endpoint for streamable-http deployment."""
         status_info = await browser.status()
-        return JSONResponse({
-            "status": "ok",
-            "engines": status_info,
-        })
+        return JSONResponse(
+            {
+                "status": "ok",
+                "engines": status_info,
+            }
+        )
 
     return app
 

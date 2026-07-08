@@ -1,6 +1,10 @@
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from linkedin_mcp_zero.scraping.guest_api import (
+    GuestAPIClient,
     extract_job_id,
     parse_job_detail,
     parse_search_results,
@@ -71,9 +75,7 @@ def test_parse_job_detail_schema() -> None:
 
 
 # Mock HTTP for Guest API tests
-import pytest
-from unittest.mock import AsyncMock, patch
-from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
+
 
 @pytest.mark.asyncio
 async def test_search_jobs_parses_results() -> None:
@@ -84,7 +86,7 @@ async def test_search_jobs_parses_results() -> None:
         <a class="base-card__full-link" href="https://linkedin.com/jobs/view/123456789"></a>
         <time datetime="2026-07-01"></time>
     </div>"""
-    
+
     with patch("curl_cffi.requests.AsyncSession") as MockSession:
         mock_resp = AsyncMock()
         mock_resp.status_code = 200
@@ -92,10 +94,9 @@ async def test_search_jobs_parses_results() -> None:
         mock_session = AsyncMock()
         mock_session.get = AsyncMock(return_value=mock_resp)
         MockSession.return_value = mock_session
-        
+
         client = GuestAPIClient()
         client._session = mock_session
         results = await client.search_jobs("python", limit=1)
         assert len(results) == 1
         assert results[0]["t"] == "Python Dev"
-

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import structlog
-from typing import Any
 from authlib.integrations.starlette_client import OAuth
 
 logger = structlog.get_logger()
 oauth = OAuth()
+
 
 def setup_oauth(app: Any, settings: Any) -> None:
     """Register OAuth provider for token validation."""
@@ -17,6 +19,7 @@ def setup_oauth(app: Any, settings: Any) -> None:
             client_id=settings.oauth_client_id,
             client_secret=settings.oauth_client_secret,
         )
+
 
 class OAuthMiddleware:
     """Validates Bearer tokens against an OAuth 2.1 authorization server."""
@@ -44,15 +47,19 @@ class OAuthMiddleware:
         return False
 
     async def _send_401(self, send: Any) -> None:
-        await send({
-            "type": "http.response.start",
-            "status": 401,
-            "headers": [(b"content-type", b"application/json")],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": b'{"error": "Unauthorized", "detail": "Invalid or expired OAuth token"}',
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": b'{"error": "Unauthorized", "detail": "Invalid or expired OAuth token"}',
+            }
+        )
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] == "http":
