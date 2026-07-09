@@ -25,9 +25,15 @@ except ImportError:
 
 
 class MatchingEngine:
-    def __init__(self, storage: Storage, public: PublicAPIEngine) -> None:
+    def __init__(self, storage: Storage, public: PublicAPIEngine, llm_provider: Any | None = None) -> None:
         self.storage = storage
         self.public = public
+        if llm_provider is None:
+            from linkedin_mcp_zero.utils.llm import LLMProvider
+
+            self.llm_provider = LLMProvider()
+        else:
+            self.llm_provider = llm_provider
         self._transformer_model = None
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
@@ -73,6 +79,7 @@ class MatchingEngine:
         loc: str = "",
         min_score: int = 60,
         limit: int = 15,
+        ctx: Any | None = None,
     ) -> dict[str, Any]:
         resume = self.storage.get_resume(id)
         if not resume:
@@ -115,6 +122,45 @@ class MatchingEngine:
                         "why": "Semantic matching with skill-profile similarity scoring.",
                     }
                 )
+
+        # Sort matches by score descending
+        matches.sort(key=lambda x: x["score"], reverse=True)
+        # Update rank after sorting
+        for idx, match in enumerate(matches):
+            match["rank"] = idx + 1
+
+        # Enrich the top 3 matches with LLM reasoning if LLM is active
+        top_matches = matches[:3]
+        if top_matches and (ctx is not None or self.llm_provider.api_key or self.llm_provider.openai_api_key):
+            import asyncio
+
+            async def enrich_job(match_item: dict[str, Any]) -> None:
+                job_desc = match_item.get("desc", "") or match_item.get("t", "")
+                prompt = f"""Analyze the fit between this candidate and this job posting:
+CANDIDATE:
+Name: {resume.get("name")}
+Skills: {", ".join(skills)}
+Summary: {resume.get("summary", "")[:200]}
+
+JOB:
+Title: {match_item.get("t")}
+Company: {match_item.get("co")}
+Description/Details: {job_desc[:400]}
+
+Provide a 1-sentence explanation of why the candidate is a match and what the most critical skill gap might be."""
+                try:
+                    why_text = await self.llm_provider.generate(
+                        prompt=prompt,
+                        system_prompt="You are a recruiter summarizing job fit in exactly one sentence.",
+                        ctx=ctx,
+                    )
+                    if why_text:
+                        match_item["why"] = why_text.strip()
+                except Exception as e:
+                    logger.debug("Failed to enrich job match with LLM", job_id=match_item.get("id"), error=str(e))
+
+            await asyncio.gather(*(enrich_job(m) for m in top_matches))
+
         return {"matches": matches, "summary": f"Found {len(matches)} matches >= {min_score}%"}
 
     async def compare_jobs(self, ids: list[str]) -> dict[str, Any]:

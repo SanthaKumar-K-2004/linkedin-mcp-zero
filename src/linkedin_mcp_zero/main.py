@@ -123,13 +123,9 @@ def cli() -> None:
         Console().print_json(json.dumps(verify_res.__dict__, default=str))
         return
 
-    DISCLAIMER = (
-        "\n[bold yellow]SAFE USE NOTICE & DISCLAIMER:[/bold yellow]\n"
-        "This tool is for educational & research purposes only. Automated scraping of LinkedIn\n"
-        "may violate their Terms of Service and could lead to account restrictions or IP blocks.\n"
-        "Always use public guest endpoints or browser/voyager/sampling modes responsibly.\n"
-    )
-    Console(stderr=True).print(DISCLAIMER)
+    from linkedin_mcp_zero.server.disclaimer import show_disclaimer_if_needed
+
+    show_disclaimer_if_needed(settings.data_dir)
 
     app = create_app(settings)
     if settings.transport == "streamable-http":

@@ -9,8 +9,9 @@ logger = structlog.get_logger()
 class LLMProvider:
     """Abstraction for interacting with LLM models via client sampling or custom configurations."""
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, openai_api_key: str | None = None) -> None:
         self.api_key = api_key
+        self.openai_api_key = openai_api_key
 
     async def generate(self, prompt: str, system_prompt: str = "", ctx: Context | None = None) -> str:
         """Generate text from LLM using client context or fallback local heuristics."""
@@ -23,6 +24,61 @@ class LLMProvider:
                 return result.text or ""
             except Exception as e:
                 logger.warning("LLM client sampling failed, falling back to local analysis", error=str(e))
+
+        # Direct API calls if keys are available
+        if self.api_key:
+            try:
+                import httpx
+
+                headers = {
+                    "x-api-key": self.api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                }
+                data = {
+                    "model": "claude-3-5-sonnet-20241022",
+                    "max_tokens": 1024,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers=headers,
+                        json=data,
+                        timeout=30.0,
+                    )
+                    resp.raise_for_status()
+                    return str(resp.json()["content"][0]["text"])
+            except Exception as e:
+                logger.warning(
+                    "Direct Anthropic API call failed, falling back to other providers or heuristics", error=str(e)
+                )
+
+        if self.openai_api_key:
+            try:
+                import httpx
+
+                headers = {
+                    "Authorization": f"Bearer {self.openai_api_key}",
+                    "content-type": "application/json",
+                }
+                data = {
+                    "model": "gpt-4o-mini",
+                    "max_tokens": 1024,
+                    "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": prompt}],
+                }
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers=headers,
+                        json=data,
+                        timeout=30.0,
+                    )
+                    resp.raise_for_status()
+                    return str(resp.json()["choices"][0]["message"]["content"])
+            except Exception as e:
+                logger.warning("Direct OpenAI API call failed, falling back to local heuristics", error=str(e))
 
         # Heuristic analysis fallback for offline/non-sampling environments
         name = "Candidate"

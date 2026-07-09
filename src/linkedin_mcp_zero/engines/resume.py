@@ -46,8 +46,14 @@ SKILLS = [
 
 
 class ResumeEngine:
-    def __init__(self, storage: Storage) -> None:
+    def __init__(self, storage: Storage, llm_provider: Any | None = None) -> None:
         self.storage = storage
+        if llm_provider is None:
+            from linkedin_mcp_zero.utils.llm import LLMProvider
+
+            self.llm_provider = LLMProvider()
+        else:
+            self.llm_provider = llm_provider
 
     def analyze_resume(self, path: str) -> dict[str, Any]:
         settings = self.storage.settings
@@ -85,7 +91,7 @@ class ResumeEngine:
         resume_id = self.storage.save_resume(path, data)
         return {"id": resume_id, **data}
 
-    def get_resume_insights(self, id: int) -> dict[str, Any]:
+    async def get_resume_insights(self, id: int, ctx: Any | None = None) -> dict[str, Any]:
         resume = self.storage.get_resume(id)
         if not resume:
             return {"error": "resume_not_found", "id": id}
@@ -93,7 +99,8 @@ class ResumeEngine:
         target = {"Python", "SQL", "AWS", "Docker", "Kubernetes", "FastAPI"}
         gaps = sorted(target - skills)
         strengths = sorted(skills & target)
-        return {
+
+        insights = {
             "id": id,
             "gap_skills": gaps[:8],
             "strengths": strengths[:8],
@@ -104,6 +111,31 @@ class ResumeEngine:
             ],
             "market_pos": "Computed locally from resume keywords; LLM scoring can be added later.",
         }
+
+        # If LLM is available, enrich the insights
+        if ctx is not None or self.llm_provider.api_key or self.llm_provider.openai_api_key:
+            prompt = f"""Analyze this candidate's resume and provide career insights:
+Candidate Name: {resume.get("name", "Candidate")}
+Current Skills: {", ".join(resume.get("skills", []))}
+Summary: {resume.get("summary", "")}
+
+Provide:
+1. Executive Summary
+2. Top 3 Strengths
+3. Recommended improvements and missing skills
+4. Key suggestions to stand out"""
+            try:
+                analysis = await self.llm_provider.generate(
+                    prompt=prompt,
+                    system_prompt="You are a professional resume reviewer. Be structured and concise.",
+                    ctx=ctx,
+                )
+                insights["llm_insights"] = analysis
+                insights["market_pos"] = "AI-Powered Analysis"
+            except Exception as e:
+                logger.warning("LLM resume insights generation failed, using local heuristics only", error=str(e))
+
+        return insights
 
 
 def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> str:

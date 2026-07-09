@@ -46,12 +46,15 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     app = FastMCP("linkedin-mcp-zero")
     storage = Storage(settings)
     public = PublicAPIEngine(settings)
-    resume = ResumeEngine(storage)
-    matching = MatchingEngine(storage, public)
+    llm_provider = LLMProvider(
+        api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
+    )
+    resume = ResumeEngine(storage, llm_provider)
+    matching = MatchingEngine(storage, public, llm_provider)
     browser = BrowserEngine(settings)
     voyager = VoyagerEngine(settings)
     metrics = MetricsStore(settings)
-    llm_provider = LLMProvider()
 
     from contextlib import asynccontextmanager
 
@@ -189,10 +192,10 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Parse resume PDF/DOCX/text locally."""
         return resume.analyze_resume(path)
 
-    @sync_tool("local")
-    def get_resume_insights(id: int) -> dict[str, object]:
-        """Get local resume skill gaps and suggestions."""
-        return resume.get_resume_insights(id)
+    @async_tool("local")
+    async def get_resume_insights(id: int, ctx: Context | None = None) -> dict[str, object]:
+        """Get resume skill gaps and suggestions with optional LLM reasoning."""
+        return await resume.get_resume_insights(id, ctx=ctx)
 
     @async_tool("local")
     async def match_jobs_to_resume(
@@ -201,9 +204,10 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         loc: str = "",
         min_score: int = 60,
         limit: int = 15,
+        ctx: Context | None = None,
     ) -> dict[str, object]:
-        """Rank public jobs against a saved resume."""
-        return await matching.match_jobs_to_resume(id, kw, loc, min_score, limit)
+        """Rank public jobs against a saved resume with optional LLM reasoning."""
+        return await matching.match_jobs_to_resume(id, kw, loc, min_score, limit, ctx=ctx)
 
     @async_tool("local")
     async def compare_jobs(ids: list[str]) -> dict[str, object]:
@@ -502,7 +506,7 @@ For each job found:
 
     # --- Week 2-4 MCP Sampling & Elicitation Tools ---
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def smart_match_jobs(resume_id: int, ctx: Context) -> dict[str, object]:
+    async def smart_match_jobs(resume_id: int, ctx: Context | None = None) -> dict[str, object]:
         """AI-powered job matching using the client's LLM for reasoning."""
         resume = storage.get_resume(resume_id)
         if not resume:
@@ -521,14 +525,15 @@ And these job listings:
 Rank the top jobs by fit. Explain why they match and identify any skill gaps.
 Return a concise summary with match scores."""
 
-        result = await ctx.sample(
-            messages=prompt,
+        analysis = await llm_provider.generate(
+            prompt=prompt,
             system_prompt="You are a precise career matching engine. Be concise.",
+            ctx=ctx,
         )
-        return {"analysis": result.text, "jobs_analyzed": len(jobs)}
+        return {"analysis": analysis, "jobs_analyzed": len(jobs)}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def generate_cover_letter(job_id: str, resume_id: int, ctx: Context) -> dict[str, object]:
+    async def generate_cover_letter(job_id: str, resume_id: int, ctx: Context | None = None) -> dict[str, object]:
         """Generate a tailored cover letter using the client's LLM."""
         job = await public.get_job_details(job_id)
         resume = storage.get_resume(resume_id)
@@ -543,14 +548,15 @@ Name: {resume.get("name")}
 Skills: {", ".join(str(s) for s in resume.get("skills") or [])}
 Experience: {str(resume.get("summary") or "")[:300]}"""
 
-        result = await ctx.sample(
-            messages=prompt,
+        cover_letter = await llm_provider.generate(
+            prompt=prompt,
             system_prompt="You are a professional cover letter writer.",
+            ctx=ctx,
         )
-        return {"cover_letter": result.text}
+        return {"cover_letter": cover_letter}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def analyze_salary_offer(job_id: str, ctx: Context) -> dict[str, object]:
+    async def analyze_salary_offer(job_id: str, ctx: Context | None = None) -> dict[str, object]:
         """AI-powered salary analysis using real market data and client's LLM."""
         job = await public.get_job_details(job_id)
         trends = {}
@@ -562,11 +568,12 @@ Job: {job.get("t")} at {job.get("co")} in {job.get("loc")}
 Listed salary: {job.get("sal", "Not disclosed")}
 Market data context: {json.dumps(trends)}"""
 
-        result = await ctx.sample(
-            messages=prompt,
+        analysis = await llm_provider.generate(
+            prompt=prompt,
             system_prompt="You are a professional compensation analyst.",
+            ctx=ctx,
         )
-        return {"job_id": job_id, "analysis": result.text}
+        return {"job_id": job_id, "analysis": analysis}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
     async def personalized_job_hunt(kw: str, ctx: Context) -> dict[str, object]:
@@ -643,7 +650,7 @@ Market data context: {json.dumps(trends)}"""
         return await matching.export_jobs(ids, fmt)
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def get_resume_insights_advanced(id: int, ctx: Context) -> dict[str, object]:
+    async def get_resume_insights_advanced(id: int, ctx: Context | None = None) -> dict[str, object]:
         """Get advanced AI-powered insights on a resume using LLM reasoning."""
         resume_data = storage.get_resume(id)
         if not resume_data:
@@ -668,15 +675,16 @@ Provide:
         return {"id": id, "insights": analysis}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def deep_industry_analysis(industry: str, ctx: Context) -> dict[str, object]:
+    async def deep_industry_analysis(industry: str, ctx: Context | None = None) -> dict[str, object]:
         """Full industry analysis with progress updates."""
         jobs = await public.search_jobs(kw=industry, limit=10)
 
         analyzed = []
         for i, job in enumerate(jobs[:5]):
-            await ctx.report_progress(
-                progress=i + 1, total=5, message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
-            )
+            if ctx is not None:
+                await ctx.report_progress(
+                    progress=i + 1, total=5, message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
+                )
             job_id = job.get("id")
             if job_id:
                 try:

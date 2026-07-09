@@ -23,7 +23,7 @@ with explicit connection/risk gating.
 - [x] Add richer company search/profile tools
 - [x] Register all 32 planned MCP tools
 - [x] Add MCP app registration smoke checks
-- [ ] Add first-run safety/disclaimer text
+- [x] Add first-run safety/disclaimer text
 
 ## Phase 2: Multi-Board + Resume
 
@@ -31,7 +31,7 @@ with explicit connection/risk gating.
 - [x] Add resume parsing for TXT/MD/DOCX, optional PDF
 - [x] Add local resume storage
 - [x] Add local matching baseline
-- [ ] Add LLM provider abstraction for resume insights and matching
+- [x] Add LLM provider abstraction for resume insights and matching
 
 ## Phase 3: Browser Engine
 
@@ -43,7 +43,7 @@ with explicit connection/risk gating.
 
 ## Phase 4: Release Hardening
 
-- [ ] Add full docs for Claude Desktop, Claude Code, Cursor, and HTTP usage
-- [ ] Add Docker image for Engine 1
-- [ ] Add CI checks
-- [ ] Add PyPI release workflow
+- [x] Add full docs for Claude Desktop, Claude Code, Cursor, and HTTP usage
+- [x] Add Docker image for Engine 1
+- [x] Add CI checks
+- [x] Add PyPI release workflow

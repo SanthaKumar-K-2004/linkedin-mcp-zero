@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     exact_token_count: bool = False
     token_count_model: str = "claude-sonnet-4-5"
     anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
+    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     li_at: str | None = Field(default=None, validation_alias="LI_AT")
     api_key: str | None = Field(default=None, validation_alias="API_KEY")
     cors_allowed_origins: list[str] = Field(default=["*"], validation_alias="CORS_ALLOWED_ORIGINS")

@@ -85,7 +85,8 @@ def test_resume_pdf_parsing(tmp_path, mock_storage) -> None:
         del sys.modules["fitz"]
 
 
-def test_resume_insights(mock_storage) -> None:
+@pytest.mark.asyncio
+async def test_resume_insights(mock_storage) -> None:
     engine = ResumeEngine(mock_storage)
     # Save a dummy resume in DB
     resume_id = mock_storage.save_resume(
@@ -96,14 +97,15 @@ def test_resume_insights(mock_storage) -> None:
         },
     )
 
-    insights = engine.get_resume_insights(resume_id)
+    insights = await engine.get_resume_insights(resume_id)
     assert insights["id"] == resume_id
     assert "Docker" in insights["gap_skills"]
     assert "Python" in insights["strengths"]
 
 
-def test_resume_insights_not_found(mock_storage) -> None:
+@pytest.mark.asyncio
+async def test_resume_insights_not_found(mock_storage) -> None:
     engine = ResumeEngine(mock_storage)
-    insights = engine.get_resume_insights(9999)
+    insights = await engine.get_resume_insights(9999)
     assert "error" in insights
     assert insights["error"] == "resume_not_found"
