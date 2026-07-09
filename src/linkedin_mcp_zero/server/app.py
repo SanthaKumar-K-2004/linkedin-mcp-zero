@@ -683,7 +683,9 @@ Provide:
         for i, job in enumerate(jobs[:5]):
             if ctx is not None:
                 await ctx.report_progress(
-                    progress=i + 1, total=5, message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}"
+                    progress=i + 1,
+                    total=5,
+                    message=f"Analyzing: {job.get('t', 'unknown')} at {job.get('co', 'unknown')}",
                 )
             job_id = job.get("id")
             if job_id:
