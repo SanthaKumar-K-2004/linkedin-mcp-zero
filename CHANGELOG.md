@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.3.11] - 2026-07-29
+### Added
+- **Job criteria mining** (hidden structured data): every LinkedIn job detail
+  page embeds a criteria block the JSON-LD schema omits — `get_job_details`
+  now exposes it as `cr` with `sen` (seniority level), `func` (job function),
+  `ind` (industries), and recovers the employment type from it into `type`
+  when the schema lacks `employmentType`
+
+### Fixed
+- **Circuit breaker tripped on client errors**: a 404 for an expired job id
+  counted as an upstream failure — a handful of bad ids could open the
+  breaker and block *every* search for 30 s. Only genuinely upstream-hostile
+  statuses (403 / 429 / 5xx) count now
+- **Circuit breaker half-open stampede**: the moment the cooldown expired,
+  all queued requests rushed through against a still-unhealthy upstream.
+  HALF-OPEN now admits exactly one probe; a failed probe reopens the breaker
+  immediately with a fresh window
+- **Missing employment type leaked the literal string `"NONE"`** in job
+  details (`str(None).upper()`) — absent types now stay absent, and
+  hyphenated criteria text ("Full-time") compresses like schema values
+- **Exact-token counts could be silently dropped**: the fire-and-forget
+  anthropic count task was created without a strong reference, so CPython's
+  garbage collector could cancel it mid-request; tasks are now retained in a
+  set until completion
+- **Qdrant vector point ids were unstable and collision-prone**:
+  `hash(doc_id)` is process-salted (ids changed every restart) and the
+  `digits % 10**8` fallback collapsed distinct ids (`resume_42` vs
+  `resume_100000042`) onto the same point, silently overwriting documents.
+  Ids are now deterministic `uuid5` strings, and search results expose the
+  same `doc_id` key as the fallback backend
+- 6 new regression tests (breaker probes, 4xx vs 429 accounting, task
+  retention, point-id determinism, criteria parsing, employment-type edge
+  cases)
+
 ## [0.3.10] - 2026-07-29
 ### Fixed
 - `compact_location` no longer mangles locations with substring replacements:

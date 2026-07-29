@@ -550,3 +550,179 @@ def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
         build_parser().parse_args(["--version"])
     assert exc.value.code == 0
     assert __version__ in capsys.readouterr().out
+
+
+# --- circuit breaker -----------------------------------------------------------
+def test_circuit_breaker_half_open_single_probe() -> None:
+    import time as _time
+
+    from linkedin_mcp_zero.utils.circuit_breaker import CircuitBreaker
+
+    cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.05)
+    cb.record_failure()
+    assert cb.state == "OPEN"
+
+    _time.sleep(0.06)
+    # Cooldown expired: exactly one probe is allowed through...
+    assert cb.allow_request() is True
+    assert cb.state == "HALF-OPEN"
+    # ...a concurrent second request must NOT rush a still-unhealthy upstream.
+    assert cb.allow_request() is False
+
+    # A failed probe reopens the breaker immediately, with a fresh window.
+    cb.record_failure()
+    assert cb.state == "OPEN"
+    assert cb.allow_request() is False
+
+    _time.sleep(0.06)
+    assert cb.allow_request() is True
+    cb.record_success()
+    assert cb.state == "CLOSED"
+    assert cb._probe_in_flight is False
+
+
+async def test_circuit_breaker_ignores_4xx_client_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    import linkedin_mcp_zero.scraping.guest_api as ga
+
+    class _NoWaitRetrying:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        async def __aiter__(self) -> Any:
+            for _ in range(3):
+                yield self
+
+        def __enter__(self) -> Any:
+            return self
+
+        def __exit__(self, *exc: Any) -> bool:
+            return False
+
+    monkeypatch.setattr(ga, "AsyncRetrying", _NoWaitRetrying)
+
+    class _Resp:
+        def __init__(self, status: int) -> None:
+            self.status_code = status
+
+    class _Session:
+        def __init__(self, status: int) -> None:
+            self.status = status
+            self.headers: dict[str, str] = {}
+
+        async def get(self, url: str, params: dict[str, Any]) -> _Resp:
+            return _Resp(self.status)
+
+    # 404 (expired job id) is a request problem, not an upstream outage.
+    client = ga.GuestAPIClient()
+    client._session = _Session(404)
+    with pytest.raises(ga.UpstreamError):
+        await client._get("https://x", {}, "probe")
+    assert client.circuit_breaker.failure_count == 0
+    assert client.circuit_breaker.state == "CLOSED"
+
+    # 429 means real rate limiting and must count.
+    client._session = _Session(429)
+    with pytest.raises(ga.UpstreamError):
+        await client._get("https://x", {}, "probe")
+    assert client.circuit_breaker.failure_count == 1
+
+
+# --- exact-token background task retention --------------------------------------
+async def test_exact_count_task_held_strongly(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    import linkedin_mcp_zero.metrics.tracking as tr
+    from linkedin_mcp_zero.config.settings import Settings as _S
+    from linkedin_mcp_zero.metrics.store import MetricsStore
+
+    gate = asyncio.Event()
+
+    async def slow_count(*args: Any, **kwargs: Any) -> None:
+        await gate.wait()
+
+    monkeypatch.setattr(tr, "_count_exact", slow_count)
+    store = MetricsStore(_S(data_dir=str(tmp_path)))
+    settings = _S(data_dir=str(tmp_path), exact_token_count=True, anthropic_api_key="k")
+
+    before = len(tr._background_tasks)
+    tr._record_call(store, settings, "tool.probe", "local", "now", 1, True, None, {"ok": True})
+    assert len(tr._background_tasks) == before + 1  # not garbage-collectable
+
+    gate.set()
+    await asyncio.gather(*list(tr._background_tasks))
+    await asyncio.sleep(0)
+    assert len(tr._background_tasks) == before  # discarded on completion
+
+
+# --- vector storage id determinism ------------------------------------------------
+def test_vector_point_id_deterministic_and_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
+    import types
+    import uuid
+
+    from linkedin_mcp_zero.storage.vector_db import VectorStorage, _point_id
+
+    a1, a2 = _point_id("resume_42"), _point_id("resume_42")
+    assert a1 == a2  # stable across calls (hash() was process-random)
+    uuid.UUID(a1)  # valid UUID accepted by Qdrant natively
+    # Previously "resume_42" and "resume_100000042" collided after % 10**8.
+    assert _point_id("resume_42") != _point_id("resume_100000042")
+
+    class _PointStruct:
+        def __init__(self, id: Any, vector: Any, payload: Any) -> None:
+            self.id = id
+            self.vector = vector
+            self.payload = payload
+
+    # qdrant-client is an optional extra and absent from the dev env; stub the
+    # package and the models submodule so the deferred import inside upsert
+    # resolves to our fake.
+    qdrant_pkg = types.ModuleType("qdrant_client")
+    qdrant_pkg.__path__ = []  # mark as package
+    qdrant_models = types.ModuleType("qdrant_client.models")
+    qdrant_models.PointStruct = _PointStruct  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "qdrant_client", qdrant_pkg)
+    monkeypatch.setitem(sys.modules, "qdrant_client.models", qdrant_models)
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.points: list[Any] = []
+
+        def upsert(self, collection_name: str, points: list[Any]) -> None:
+            self.points.extend(points)
+
+    vs = VectorStorage()
+    fake = _FakeClient()
+    vs.client = fake  # type: ignore[assignment]
+    vs.upsert("resume_42", [0.1, 0.2], {"path": "x"})
+    assert fake.points[0].id == _point_id("resume_42")
+    assert fake.points[0].payload["doc_id"] == "resume_42"
+
+
+# --- job criteria extraction -------------------------------------------------------
+_CRITERIA_HTML = """<html><head><script type="application/ld+json">
+{"@type": "JobPosting", "title": "DevOps Engineer", "datePosted": "2026-07-20",
+ "hiringOrganization": {"name": "Acme"},
+ "jobLocation": {"address": {"addressLocality": "Berlin", "addressCountry": "Germany"}}}
+</script></head><body>
+<ul class="description__job-criteria-list">
+ <li class="description__job-criteria-item"><h3>Seniority level</h3><span>Mid-Senior level</span></li>
+ <li class="description__job-criteria-item"><h3>Employment type</h3><span>Full-time</span></li>
+ <li class="description__job-criteria-item"><h3>Job function</h3><span>Engineering</span></li>
+ <li class="description__job-criteria-item"><h3>Industries</h3><span>Software Development</span></li>
+</ul></body></html>"""
+
+
+def test_parse_job_detail_extracts_criteria() -> None:
+    result = parse_job_detail(_CRITERIA_HTML, "99")
+    assert result["cr"] == {"sen": "Mid-Senior level", "func": "Engineering", "ind": "Software Development"}
+    # Employment type came from the criteria list (schema had none).
+    assert result["type"] == "FT"
+    assert "etype" not in result["cr"]
+
+
+def test_employment_type_handles_none_and_hyphenated() -> None:
+    from linkedin_mcp_zero.scraping.guest_api import _employment_type
+
+    # Absent type must stay absent — it used to leak the literal "NONE".
+    assert _employment_type(None) == ""
+    assert _employment_type("FULL_TIME") == "FT"
+    assert _employment_type("Full-time") == "FT"
+    assert _employment_type("Part Time") == "PT"

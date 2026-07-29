@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-import re
+import uuid
 from typing import Any
 
 import structlog
@@ -15,6 +15,17 @@ try:
     QDRANT_AVAILABLE = True
 except ImportError:
     QDRANT_AVAILABLE = False
+
+
+def _point_id(doc_id: str) -> str:
+    """Deterministic, collision-safe Qdrant point id for a document.
+
+    Replaces the old ``int(digits) % 10**8`` / ``hash(doc_id)`` scheme, which
+    was both process-random (``hash()`` is salted per process) and collision
+    prone (``resume_42`` vs ``resume_100000042`` mapped to the same point).
+    Qdrant accepts UUID strings natively.
+    """
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"linkedin-mcp-zero:{doc_id}"))
 
 
 class VectorStorage:
@@ -43,13 +54,9 @@ class VectorStorage:
             try:
                 from qdrant_client.models import PointStruct
 
-                # Simple integer conversion for qdrant ID limits
-                numeric_id = int(re.sub(r"\D", "", doc_id)) if any(c.isdigit() for c in doc_id) else hash(doc_id)
-                numeric_id = abs(numeric_id) % (10**8)
-
                 self.client.upsert(
                     collection_name=self.collection_name,
-                    points=[PointStruct(id=numeric_id, vector=vector, payload={"doc_id": doc_id, **payload})],
+                    points=[PointStruct(id=_point_id(doc_id), vector=vector, payload={"doc_id": doc_id, **payload})],
                 )
                 logger.info("Upserted document into Qdrant", doc_id=doc_id)
                 return
@@ -68,7 +75,9 @@ class VectorStorage:
                     query_vector=vector,
                     limit=limit,
                 )
-                return [{"id": r.id, "score": r.score, **(r.payload or {})} for r in results]
+                # Payload carries the stable doc_id; expose it under the same
+                # key the fallback path uses so both backends agree.
+                return [{"score": r.score, **(r.payload or {})} for r in results]
             except Exception as e:
                 logger.warning("Qdrant search failed, using fallback database", error=str(e))
 

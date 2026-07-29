@@ -94,7 +94,13 @@ class GuestAPIClient:
                     if response.status_code >= 400:
                         new_ua = random.choice(USER_AGENTS)
                         session.headers["User-Agent"] = new_ua
-                        self.circuit_breaker.record_failure()
+                        # Only upstream-hostile statuses count against the
+                        # circuit breaker. A 404 (expired job id) or 400 (bad
+                        # params) is a *request* problem — counting it would
+                        # let a couple of bad ids block every other user of
+                        # this client for 30 s.
+                        if response.status_code in (403, 429) or response.status_code >= 500:
+                            self.circuit_breaker.record_failure()
                         raise UpstreamError(f"{error_label}: HTTP {response.status_code}")
                     self.circuit_breaker.record_success()
                     return response
@@ -311,6 +317,12 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
     posted = str(schema.get("datePosted") or "")
     skills = match_skills(clean_text(desc))
     applicants = _applicants(parser)
+    # Every LinkedIn job detail page embeds a criteria list (Seniority level /
+    # Employment type / Job function / Industries) that the JSON-LD schema
+    # usually omits — mine it for structured fields otherwise unavailable.
+    criteria = _job_criteria(parser)
+    criteria_etype = criteria.pop("etype", "")
+    job_type = _employment_type(employment) or _employment_type(criteria_etype)
     return compact_dict(
         {
             "id": job_id,
@@ -319,15 +331,40 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
             "loc": compact_location(location),
             "sal": salary,
             "sal_src": salary_source,
-            "type": _employment_type(employment),
+            "type": job_type,
             "posted": posted[:10],
             "age": relative_age(posted),
             "skills": skills[:12],
             "appl": applicants,
+            "cr": criteria,
             "desc": truncate(desc, 900),
             "url": f"https://www.linkedin.com/jobs/view/{job_id}",
         }
     )
+
+
+_CRITERIA_KINDS = {
+    "seniority level": "sen",
+    "employment type": "etype",
+    "job function": "func",
+    "industries": "ind",
+}
+
+
+def _job_criteria(parser: Any) -> dict[str, str]:
+    """Extract the structured job-criteria list (seniority, function, …)."""
+    out: dict[str, str] = {}
+    for item in parser.css(".description__job-criteria-item"):
+        header = item.css_first("h3")
+        value = item.css_first("span")
+        if not header or not value:
+            continue
+        key = _CRITERIA_KINDS.get(clean_text(str(header.text(deep=True))).lower())
+        if key:
+            text = clean_text(str(value.text(deep=True)))
+            if text:
+                out[key] = truncate(text, 60)
+    return out
 
 
 def _first_text(node: Any, selectors: list[str]) -> str:
@@ -389,7 +426,12 @@ def _money(value: object) -> str:
 def _employment_type(value: object) -> str:
     if isinstance(value, list):
         value = value[0] if value else ""
-    text = clean_text(str(value)).upper()
+    # Schema values arrive as FULL_TIME, criteria text as "Full-time" —
+    # normalize both to an underscore key before lookup.
+    text = clean_text(str(value or "")).upper().replace("-", "_").replace(" ", "_")
+    if not text:
+        # Unknown/absent types previously leaked the literal string "NONE".
+        return ""
     return {
         "FULL_TIME": "FT",
         "PART_TIME": "PT",

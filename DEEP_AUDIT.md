@@ -209,7 +209,7 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 
 | Gate | Result |
 |---|---|
-| `pytest` | 138 passed, 3 live-skipped (was 86 + 1 env-dependent failure) |
+| `pytest` | 144 passed, 3 live-skipped (was 86 + 1 env-dependent failure) |
 | `ruff check` / `ruff format --check` | clean / clean |
 | `mypy --strict` | 42 source files, no issues |
 | `bandit -ll` | no issues |
@@ -236,3 +236,30 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
   run-forever, as an anti-hammer. Databases created by older releases get a
   `last_run_at TEXT` column via an automatic `ALTER TABLE` migration.
 - **`--version` flag** added to the CLI (was missing entirely).
+
+## v0.3.11 addendum (previously-untouched modules audited)
+
+- **Circuit breaker** (`utils/circuit_breaker.py`): two defects. (1) It
+  counted *every* HTTP ≥ 400 as an upstream failure — reproduced: any 404
+  (expired job id) incremented the failure count; a few bad ids trip the
+  breaker and block everyone for 30 s. Now only 403/429/5xx count. (2)
+  HALF-OPEN admitted unlimited concurrent probes (the cooldown expiry opened
+  the floodgates to a still-unhealthy upstream). Now exactly one probe is in
+  flight; a failed probe reopens the breaker immediately.
+- **`_employment_type(None)` leaked `"NONE"`**: `clean_text(str(None)).upper()`
+  produced the literal string `NONE` for every posting without an employment
+  type, which also broke the criteria fallback (`"NONE"` is truthy, so the
+  `or` never consulted the criteria block). Absent types now stay absent.
+- **Job-criteria hidden gem**: `description__job-criteria-item` blocks carry
+  `Seniority level` / `Employment type` / `Job function` / `Industries` that
+  JSON-LD usually omits — mined into a compact `cr` dict (`sen` / `func` /
+  `ind`), with `etype` recovered into `type` when the schema lacks it.
+- **Fire-and-forget task GC bug** (`metrics/tracking.py`): `create_task(...)`
+  without a strong reference can be garbage-collected (and cancelled)
+  mid-request — CPython's asyncio docs warn about exactly this. Exact-token
+  count tasks are now held in a module-level set until done.
+- **Qdrant point ids** (`storage/vector_db.py`): `hash(doc_id)` is
+  process-salted → point ids changed every restart; the digit-extraction +
+  `% 10**8` path collapsed distinct doc ids onto one point (silent document
+  overwrite). Replaced with deterministic `uuid5`, and Qdrant search results
+  now expose `doc_id` exactly like the fallback backend.

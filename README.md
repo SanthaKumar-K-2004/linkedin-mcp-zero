@@ -285,7 +285,7 @@ uv build
 Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.10*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.11*
 ```
 
 ## Search Filters Cheat Sheet
@@ -304,3 +304,8 @@ UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.10*
 | `co` | company name or `company_id` from `search_companies` | resolved → `f_C` |
 | `geo` | place name or numeric geoId (advanced only) | resolved → `geoId` |
 | `distance` | radius in miles around loc/geo, max 100 (advanced only) | `distance` |
+
+> **Job detail extras:** `get_job_details` also mines the page's structured
+> criteria block — `cr` carries `sen` (seniority level), `func` (job
+> function), and `ind` (industries), and when the JSON-LD schema omits the
+> employment type it is recovered from the same block into `type`.
