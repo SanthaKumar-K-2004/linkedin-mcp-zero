@@ -121,6 +121,11 @@ These work without LinkedIn login or browser setup.
 | 29 | `get_resume_insights_advanced` | Advanced AI-powered resume insights | Local |
 | 30 | `deep_industry_analysis` | Full industry analysis with progress updates | Local/public |
 
+> **Alert semantics:** `check_saved_alerts` with no `ids` honors each alert's
+> `daily`/`weekly` frequency — an alert already checked inside its window is
+> returned as `skipped: "not_due"` (with `next_due_in_hours`) instead of
+> re-scraped. Pass explicit `ids` to force a check regardless.
+
 ### Browser Tools: +11
 
 Enable with `--with-extra browser` or `--enable-browser`. These are read-only,
@@ -280,7 +285,7 @@ uv build
 Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.9*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.10*
 ```
 
 ## Search Filters Cheat Sheet

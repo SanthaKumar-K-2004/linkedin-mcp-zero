@@ -259,8 +259,15 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
     @async_tool("public_no_login")
     async def check_saved_alerts(ids: list[int] | None = None) -> list[dict[str, object]]:
-        """Run saved alerts and report new matches."""
+        """Run saved alerts and report new matches.
+
+        Scheduled runs (no ids) honor each alert's freq — an alert that was
+        already checked inside its daily/weekly window is skipped rather than
+        re-scraped; pass explicit ids to force a check regardless.
+        """
         import asyncio
+
+        forced = bool(ids)
 
         async def _run_alert(alert: dict[str, Any]) -> dict[str, object]:
             try:
@@ -290,9 +297,23 @@ def create_app(settings: Settings | None = None) -> FastMCP:
                 "jobs": new_jobs,
             }
 
+        async def _maybe_run(alert: dict[str, Any]) -> dict[str, object]:
+            if not forced:
+                due, hours_left = storage.alert_due(alert)
+                if not due:
+                    return {
+                        "alert_id": alert["id"],
+                        "name": alert["name"],
+                        "skipped": "not_due",
+                        "next_due_in_hours": round(hours_left, 1),
+                        "new_matches": 0,
+                        "jobs": [],
+                    }
+            return await _run_alert(alert)
+
         # Alerts are rate-limited inside the engine (1 rps bucket), so running
         # them concurrently pipelines the waits instead of adding latency.
-        return list(await asyncio.gather(*[_run_alert(a) for a in storage.selected_alerts(ids)]))
+        return list(await asyncio.gather(*[_maybe_run(a) for a in storage.selected_alerts(ids)]))
 
     if settings.enable_browser:
 

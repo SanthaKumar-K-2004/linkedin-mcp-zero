@@ -431,3 +431,122 @@ def test_multi_fallback_guest_client_gets_proxy() -> None:
         rows = asyncio.run(mb.search_jobs_multi("dev", "", 5, 168, proxy="http://127.0.0.1:8080"))
     assert captured["proxy"] == "http://127.0.0.1:8080"
     assert rows[0]["site"] == "linkedin"
+
+
+# --- compact_location word boundaries -----------------------------------------
+def test_compact_location_respects_word_boundaries() -> None:
+    from linkedin_mcp_zero.utils.compress import compact_location
+
+    # Substring replacement used to mangle these ("India" inside "Indiana",
+    # "New York" inside "New Yorker").
+    assert compact_location("Indianapolis, Indiana") == "Indianapolis, Indiana"
+    assert compact_location("New Yorker Hotel, Newark") == "New Yorker Hotel, Newark"
+    assert compact_location("New Yorkshire") == "New Yorkshire"
+    # Real locations still compress (and compress fully).
+    assert compact_location("San Francisco, California, United States") == "San Francisco, CA, US"
+    assert compact_location("New York, New York") == "NY, NY"
+    assert compact_location("Bengaluru, India") == "Bengaluru, IN"
+    assert compact_location("Eindhoven, Netherlands") == "Eindhoven, NL"
+    assert compact_location("Doncaster, United Kingdom") == "Doncaster, UK"
+    # "Canada" is intentionally not mapped: "CA" is California in US listings,
+    # so "Toronto, Canada" must never collapse into "Toronto, CA".
+    assert compact_location("Toronto, Canada") == "Toronto, Canada"
+
+
+# --- alert freq honoring -------------------------------------------------------
+def test_alert_due_windows(tmp_path: Path) -> None:
+    from linkedin_mcp_zero.config.settings import Settings as _S
+    from linkedin_mcp_zero.storage.db import Storage
+
+    storage = Storage(_S(data_dir=str(tmp_path)))
+    daily = storage.save_alert("daily-probe", "python")
+    weekly = storage.save_alert("weekly-probe", "rust", freq="weekly")
+
+    # Never run -> always due.
+    row = storage.selected_alerts([int(daily["id"])])[0]
+    assert storage.alert_due(row) == (True, 0.0)
+
+    # Just-run alerts are not due again inside their window.
+    storage.update_alert_seen(int(daily["id"]), ["1"])
+    storage.update_alert_seen(int(weekly["id"]), ["1"])
+    daily_due, daily_wait = storage.alert_due(storage.selected_alerts([int(daily["id"])])[0])
+    weekly_due, weekly_wait = storage.alert_due(storage.selected_alerts([int(weekly["id"])])[0])
+    assert daily_due is False and 20 <= daily_wait < 24
+    assert weekly_due is False and 24 < weekly_wait <= 168
+
+    # Unknown freq values fall back to daily, never to run-forever.
+    weird = dict(storage.selected_alerts([int(daily["id"])])[0])
+    weird["freq"] = "hourly-typo"
+    assert storage.alert_due(weird)[0] is False
+
+    # Unparseable last_run_at must not silence the alert forever.
+    row = dict(storage.selected_alerts([int(daily["id"])])[0])
+    row["last_run_at"] = "not-a-date"
+    assert storage.alert_due(row) == (True, 0.0)
+
+
+def test_alert_last_run_at_migration(tmp_path: Path) -> None:
+    import sqlite3
+
+    from linkedin_mcp_zero.config.settings import Settings as _S
+    from linkedin_mcp_zero.storage.db import Storage
+
+    # Simulate a database created by an older release without last_run_at.
+    (tmp_path / "state.sqlite3").touch()
+    with sqlite3.connect(tmp_path / "state.sqlite3") as conn:
+        conn.execute(
+            "CREATE TABLE alerts ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, kw TEXT NOT NULL,"
+            " loc TEXT DEFAULT '', freq TEXT DEFAULT 'daily', last_ids TEXT DEFAULT '[]',"
+            " created_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+        )
+        conn.execute("INSERT INTO alerts(name, kw) VALUES ('legacy', 'python')")
+
+    storage = Storage(_S(data_dir=str(tmp_path)))
+    listed = storage.list_alerts()
+    assert listed[0]["last_run_at"] is None
+    storage.update_alert_seen(1, ["1"])
+    assert storage.selected_alerts([1])[0]["last_run_at"]
+
+
+async def test_check_saved_alerts_honors_freq(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from linkedin_mcp_zero.config.settings import Settings as _S
+    from linkedin_mcp_zero.engines.public_api import PublicAPIEngine
+    from linkedin_mcp_zero.server.app import create_app
+
+    calls: list[str] = []
+
+    async def fake_search(self: Any, kw: str, **kwargs: Any) -> list[dict[str, Any]]:
+        calls.append(kw)
+        return [{"id": "1", "t": "x"}]
+
+    monkeypatch.setattr(PublicAPIEngine, "search_jobs", fake_search)
+    app = create_app(_S(data_dir=str(tmp_path)))
+    await app.call_tool("save_job_alert", {"name": "n", "kw": "python"})
+
+    # FastMCP wraps non-dict tool returns as {"result": [...]} in structured_content.
+    def unwrap(sc: Any) -> list[dict[str, Any]]:
+        return sc["result"] if isinstance(sc, dict) else sc
+
+    # First scheduled run executes (never run -> due)...
+    first = unwrap((await app.call_tool("check_saved_alerts", {})).structured_content)
+    assert first[0]["new_matches"] == 1
+    # ...an immediate second scheduled run is skipped as not due...
+    second = unwrap((await app.call_tool("check_saved_alerts", {})).structured_content)
+    assert second[0]["skipped"] == "not_due"
+    assert second[0]["next_due_in_hours"] > 20
+    # ...but passing the id explicitly forces a run.
+    forced = unwrap((await app.call_tool("check_saved_alerts", {"ids": [1]})).structured_content)
+    assert "skipped" not in forced[0]
+    assert len(calls) == 2
+
+
+# --- CLI --version ---------------------------------------------------------------
+def test_cli_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    from linkedin_mcp_zero import __version__
+    from linkedin_mcp_zero.main import build_parser
+
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(["--version"])
+    assert exc.value.code == 0
+    assert __version__ in capsys.readouterr().out

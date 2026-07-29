@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.10] - 2026-07-29
+### Fixed
+- `compact_location` no longer mangles locations with substring replacements:
+  "Indianapolis, Indiana" used to come out as "INnapolis, INna" and "New
+  Yorker…" as "NYer…" — replacements are now word-boundary-safe regex patterns
+  applied longest-first, so abbreviations only fire on real place names
+- Saved alerts now actually honor their `daily`/`weekly` frequency: scheduled
+  `check_saved_alerts` runs (no explicit ids) skip alerts that were already
+  checked inside their window instead of re-scraping LinkedIn every call;
+  skipping reports `next_due_in_hours`, and passing explicit ids still forces
+  a run. Failed checks do not stamp the window, so retries are never blocked
+
+### Added
+- `--version` CLI flag printing `linkedin-mcp-zero <version>`
+- SQLite migration adding a `last_run_at` column to `alerts` for existing
+  databases (added automatically on startup)
+- Broader token-saving location compressions beside the original five:
+  Netherlands→NL, Singapore→SG, Australia→AU, Germany→DE, France→FR,
+  Spain→ES, Italy→IT, Sweden→SE, Brazil→BR, Japan→JP. "Canada" is
+  intentionally never collapsed to "CA" (California already owns that code)
+- 5 new regression tests (location boundaries, alert due windows, legacy-db
+  migration, freq-aware scheduled runs, `--version`)
+
 ## [0.3.9] - 2026-07-29
 ### Added
 - `SECURITY.md` — supported versions, private reporting channel, and a full

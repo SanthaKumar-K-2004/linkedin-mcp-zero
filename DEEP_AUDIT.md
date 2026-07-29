@@ -209,7 +209,7 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 
 | Gate | Result |
 |---|---|
-| `pytest` | 110 passed (was 86 + 1 env-dependent failure) |
+| `pytest` | 138 passed, 3 live-skipped (was 86 + 1 env-dependent failure) |
 | `ruff check` / `ruff format --check` | clean / clean |
 | `mypy --strict` | 42 source files, no issues |
 | `bandit -ll` | no issues |
@@ -217,3 +217,22 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 | Tool counts | 30 default / 41 browser / 42 browser+voyager (matches README) |
 | Docker build sequence | reproduced successfully |
 | Telemetry span emission | verified post-init, exported to stderr |
+
+## v0.3.10 addendum
+
+- **`compact_location` substring mangling** — reproduced: `Indianapolis,
+  Indiana` → `"INnapolis, INna"` ("India" replaced inside "Indiana") and
+  `New Yorker Hotel` → `"NYer Hotel"` ("New York" replaced inside "New
+  Yorker"). The compression now uses word-boundary regex patterns, applied
+  longest-phrase-first, and gains 10 more country compressions. "Canada"
+  stays un-mapped on purpose: output like `Toronto, CA` would be
+  indistinguishable from California listings.
+- **Alert `freq` was stored but never honored** — `check_saved_alerts`
+  re-scraped every alert on every call whether it was saved as `daily` or
+  `weekly`. Scheduled runs now skip alerts inside their frequency window
+  (`not_due` + `next_due_in_hours`), explicit `ids` still force a run, and
+  failed checks never stamp the timestamp so retries aren't blocked. Unknown
+  freq values (hand-edited DB rows) degrade to "daily" rather than
+  run-forever, as an anti-hammer. Databases created by older releases get a
+  `last_run_at TEXT` column via an automatic `ALTER TABLE` migration.
+- **`--version` flag** added to the CLI (was missing entirely).

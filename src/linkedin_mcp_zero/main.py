@@ -8,6 +8,7 @@ from rich.console import Console
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
+from linkedin_mcp_zero import __version__
 from linkedin_mcp_zero.config.autodetect import detect_runtime
 from linkedin_mcp_zero.config.install import (
     PackageExtra,
@@ -23,6 +24,7 @@ from linkedin_mcp_zero.utils.logging import configure_logging
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="linkedin-mcp-zero")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default=None)
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
