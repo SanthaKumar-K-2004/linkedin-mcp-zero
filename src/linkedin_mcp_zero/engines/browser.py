@@ -28,6 +28,8 @@ DAILY_CAPS = {
     "feed_read": 10,
     "notifications": 30,
     "company_people": 15,
+    # Session probes are cheap and frequent; keep them out of the feed bucket.
+    "session_check": 50,
 }
 
 
@@ -37,6 +39,7 @@ class BrowserEngine:
         self._playwright: Any = None
         self._browser: Any = None
         self._context: Any = None
+        self._page_obj: Any = None
         self._mode = "cdp"
         self._last_used = 0.0
         self._lock = asyncio.Lock()
@@ -58,7 +61,7 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        page = await self._page("https://www.linkedin.com/feed/", "feed_read")
+        page = await self._page("https://www.linkedin.com/feed/", "session_check")
         title = await _safe_title(page)
         url = page.url
         logged_in = "login" not in url and "authwall" not in url
@@ -279,6 +282,7 @@ class BrowserEngine:
         return self._browser
 
     async def _close_unlocked(self) -> None:
+        self._page_obj = None
         if self._context:
             with suppress(Exception):
                 await self._context.close()
@@ -294,12 +298,29 @@ class BrowserEngine:
 
     async def _page(self, url: str, action_type: str) -> Any:
         await self._pace(action_type)
-        browser = await self._ensure_browser()
-        context = self._context or (browser.contexts[0] if browser.contexts else await browser.new_context())
-        page = context.pages[0] if context.pages else await context.new_page()
+        page = await self._our_page()
         await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         self._last_used = time.monotonic()
         return page
+
+    async def _our_page(self) -> Any:
+        """Return a dedicated page owned by this engine.
+
+        Never reuse ``context.pages[0]`` in CDP mode: those tabs belong to the
+        user's real Chrome window, and navigating them hijacks whatever the
+        user currently has open.
+        """
+        browser = await self._ensure_browser()
+        context = self._context or (browser.contexts[0] if browser.contexts else await browser.new_context())
+        if self._page_obj is not None:
+            try:
+                if not self._page_obj.is_closed():
+                    return self._page_obj
+            except Exception:
+                pass
+            self._page_obj = None
+        self._page_obj = await context.new_page()
+        return self._page_obj
 
     async def _active_page(self) -> Any:
         browser = await self._ensure_browser()

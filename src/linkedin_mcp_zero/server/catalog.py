@@ -123,7 +123,7 @@ TOOLS: list[dict[str, object]] = [
     },
     {
         "name": "save_job_alert",
-        "short": "sja",
+        "short": "sal",
         "engine": "ST",
         "risk": "local_zero_account_risk",
         "tokens": 100,
@@ -328,6 +328,14 @@ TOOLS: list[dict[str, object]] = [
         "risk": "local_zero_account_risk",
         "tokens": 800,
         "desc": "Advanced AI-powered resume insights",
+    },
+    {
+        "name": "deep_industry_analysis",
+        "short": "dia",
+        "engine": "E1",
+        "risk": "public_no_login_read_only",
+        "tokens": 1200,
+        "desc": "Full industry analysis with progress updates",
     },
 ]
 

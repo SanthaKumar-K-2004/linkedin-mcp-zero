@@ -15,6 +15,7 @@ class MetricsStore:
         base = Path(settings.data_dir or user_data_dir(DATA_DIR_NAME)).expanduser()
         base.mkdir(parents=True, exist_ok=True)
         self.db_path = base / "metrics.sqlite3"
+        self.max_rows = max(100, settings.metrics_max_rows)
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
@@ -86,7 +87,17 @@ class MetricsStore:
                     tokens_estimated,
                 ),
             )
-            return cur.lastrowid if cur.lastrowid is not None else 0
+            row_id = cur.lastrowid if cur.lastrowid is not None else 0
+            # Retention: the metrics DB previously grew without bound. Keep
+            # only the newest max_rows entries so long-lived installs stay small.
+            conn.execute(
+                """
+                DELETE FROM tool_calls
+                WHERE id NOT IN (SELECT id FROM tool_calls ORDER BY id DESC LIMIT ?)
+                """,
+                (self.max_rows,),
+            )
+            return row_id
 
     def update_exact_tokens(self, row_id: int, tokens: int) -> None:
         with self._connect() as conn:

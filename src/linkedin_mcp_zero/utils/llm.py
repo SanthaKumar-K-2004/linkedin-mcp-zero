@@ -9,9 +9,15 @@ logger = structlog.get_logger()
 class LLMProvider:
     """Abstraction for interacting with LLM models via client sampling or custom configurations."""
 
-    def __init__(self, api_key: str | None = None, openai_api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        openai_api_key: str | None = None,
+        model: str = "claude-sonnet-4-5",
+    ) -> None:
         self.api_key = api_key
         self.openai_api_key = openai_api_key
+        self.model = model
 
     async def generate(self, prompt: str, system_prompt: str = "", ctx: Context | None = None) -> str:
         """Generate text from LLM using client context or fallback local heuristics."""
@@ -36,7 +42,7 @@ class LLMProvider:
                     "content-type": "application/json",
                 }
                 data = {
-                    "model": "claude-3-5-sonnet-20241022",
+                    "model": self.model,
                     "max_tokens": 1024,
                     "system": system_prompt,
                     "messages": [{"role": "user", "content": prompt}],

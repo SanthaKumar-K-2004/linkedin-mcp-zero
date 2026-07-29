@@ -17,21 +17,20 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Set working directory
 WORKDIR /app
 
-# Copy configuration and lock files
+# Copy dependency manifests only; install deps WITHOUT building the project
+# itself (sources are not copied yet and the build needs README.md + src/).
 COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
 
-# Install project dependencies (excluding developer extras)
-RUN uv sync --frozen --no-dev
-
-# Copy source code and tests
-COPY src/ ./src/
+# Copy source code (README.md is required by hatchling for package metadata)
 COPY README.md ./
+COPY src/ ./src/
 
-# Re-install the package to ensure entry points are registered
-RUN uv pip install -e .
+# Now install the project itself into the prepared environment
+RUN uv sync --frozen --no-dev
 
 # Expose port for streamable-http mode
 EXPOSE 8000
 
 # Run mcp server in streamable-http mode by default
-CMD ["uv", "run", "linkedin-mcp-zero", "--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "--no-sync", "linkedin-mcp-zero", "--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]

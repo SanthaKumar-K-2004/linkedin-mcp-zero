@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 import time
 from collections import defaultdict
 from typing import Any
@@ -34,7 +35,9 @@ class APIKeyAndRateLimitMiddleware:
                 if auth_val.startswith("Bearer "):
                     client_key = auth_val[7:]
 
-            if not client_key or client_key != self.api_key:
+            # Constant-time comparison: a plain != leaks key length/content
+            # through response timing.
+            if not client_key or not secrets.compare_digest(client_key, self.api_key):
                 logger.warning(
                     "Unauthorized request blocked",
                     path=scope.get("path"),

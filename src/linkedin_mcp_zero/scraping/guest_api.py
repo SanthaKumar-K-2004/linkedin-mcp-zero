@@ -10,7 +10,7 @@ from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
-from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
+from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT, TYPEAHEAD_BASE
 from linkedin_mcp_zero.scraping.schema import extract_json_ld, first_job_posting
 from linkedin_mcp_zero.utils.circuit_breaker import CircuitBreaker
 from linkedin_mcp_zero.utils.compress import (
@@ -21,6 +21,7 @@ from linkedin_mcp_zero.utils.compress import (
     truncate,
 )
 from linkedin_mcp_zero.utils.errors import ParseError, UpstreamError
+from linkedin_mcp_zero.utils.skills import match_skills
 from linkedin_mcp_zero.utils.telemetry import trace_span
 
 logger = structlog.get_logger()
@@ -35,12 +36,32 @@ USER_AGENTS = [
 
 JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=|jobPosting/|[-_])(\d{6,})")
 
+# Friendly recency aliases mapped to LinkedIn f_TPR codes.
+AGE_CODES = {
+    "": "",
+    "any": "",
+    "24h": "r86400",
+    "1d": "r86400",
+    "day": "r86400",
+    "7d": "r604800",
+    "1w": "r604800",
+    "week": "r604800",
+    "30d": "r2592000",
+    "1m": "r2592000",
+    "month": "r2592000",
+}
+
+# f_WT: 1 on-site, 2 remote, 3 hybrid.
+WORK_MODEL_CODES = {"": "", "onsite": "1", "on-site": "1", "remote": "2", "hybrid": "3"}
+
 
 class GuestAPIClient:
-    def __init__(self, timeout: float = 15) -> None:
+    def __init__(self, timeout: float = 15, proxy: str | None = None) -> None:
         self.timeout = timeout
+        self.proxy = proxy
         self._session: AsyncSession[Any] | None = None
         self.circuit_breaker = CircuitBreaker()
+        self._company_id_cache: dict[str, str | None] = {}
 
     async def _get_session(self) -> AsyncSession[Any]:
         if self._session is None:
@@ -49,6 +70,7 @@ class GuestAPIClient:
                 impersonate="chrome124",
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
                 timeout=self.timeout,
+                proxy=self.proxy,
             )
         return self._session
 
@@ -57,16 +79,39 @@ class GuestAPIClient:
             await self._session.close()
             self._session = None
 
+    async def _get(self, url: str, params: dict[str, Any], error_label: str) -> Any:
+        session = await self._get_session()
+
+        async def _make_request() -> Any:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=2, max=10),
+                reraise=True,
+            ):
+                with attempt:
+                    response = await session.get(url, params=params)
+                    if response.status_code >= 400:
+                        new_ua = random.choice(USER_AGENTS)
+                        session.headers["User-Agent"] = new_ua
+                        self.circuit_breaker.record_failure()
+                        raise UpstreamError(f"{error_label}: HTTP {response.status_code}")
+                    self.circuit_breaker.record_success()
+                    return response
+
+        return await _make_request()
+
     @trace_span("guest_api.search_jobs")
     async def search_jobs(
         self,
         kw: str,
         loc: str = "",
         *,
-        company: str = "",
+        company_id: str = "",
         job_type: str = "",
         exp: int | None = None,
         remote: bool | None = None,
+        work_model: str = "",
+        easy_apply: bool = False,
         age: str = "",
         sort: str = "relevance",
         limit: int = DEFAULT_LIMIT,
@@ -78,75 +123,99 @@ class GuestAPIClient:
             "location": loc,
             "start": 0,
         }
-        if company:
-            params["f_C"] = company
+        if company_id:
+            # f_C requires LinkedIn's numeric company id; resolve names via
+            # resolve_company_id() before calling.
+            params["f_C"] = company_id
         if job_type:
             params["f_JT"] = _job_type_code(job_type)
         if exp:
             params["f_E"] = str(exp)
-        if remote is True:
+        model_code = WORK_MODEL_CODES.get(work_model.lower(), "")
+        if model_code:
+            params["f_WT"] = model_code
+        elif remote is True:
             params["f_WT"] = "2"
-        if age:
-            params["f_TPR"] = age
+        elif remote is False:
+            params["f_WT"] = "1"
+        if easy_apply:
+            params["f_AL"] = "true"
+        age_code = AGE_CODES.get(age.lower().strip(), age)
+        if age_code:
+            params["f_TPR"] = age_code
         if sort == "date":
             params["sortBy"] = "DD"
 
         rows: list[dict[str, object]] = []
-        session = await self._get_session()
-
-        for start in range(0, limit, 25):
+        start = 0
+        # Advance the offset by the number of rows actually returned: the
+        # guest endpoint may cap a page at 10 or 25 results depending on the
+        # query, and assuming a fixed page size would silently skip jobs.
+        while len(rows) < limit:
             params["start"] = start
-
-            async def _make_request() -> Any:
-                async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(3),
-                    wait=wait_exponential(multiplier=1, min=2, max=10),
-                    reraise=True,
-                ):
-                    with attempt:
-                        response = await session.get(
-                            f"{GUEST_API_BASE}/seeMoreJobPostings/search",
-                            params=params,
-                        )
-                        if response.status_code >= 400:
-                            new_ua = random.choice(USER_AGENTS)
-                            session.headers["User-Agent"] = new_ua
-                            self.circuit_breaker.record_failure()
-                            raise UpstreamError(f"LinkedIn guest search failed: HTTP {response.status_code}")
-                        self.circuit_breaker.record_success()
-                        return response
-
-            response = await _make_request()
+            response = await self._get(
+                f"{GUEST_API_BASE}/seeMoreJobPostings/search",
+                params,
+                "LinkedIn guest search failed",
+            )
             parsed = parse_search_results(response.text)
-            rows.extend(parsed)
-            if len(parsed) == 0 or len(rows) >= limit:
+            if not parsed:
                 break
+            rows.extend(parsed)
+            start += len(parsed)
         return rows[:limit]
 
     @trace_span("guest_api.get_job_details")
     async def get_job_details(self, job_id_or_url: str) -> dict[str, object]:
         self.circuit_breaker.check()
         job_id = extract_job_id(job_id_or_url)
-        session = await self._get_session()
-
-        async def _make_request() -> Any:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(3),
-                wait=wait_exponential(multiplier=1, min=2, max=10),
-                reraise=True,
-            ):
-                with attempt:
-                    response = await session.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
-                    if response.status_code >= 400:
-                        new_ua = random.choice(USER_AGENTS)
-                        session.headers["User-Agent"] = new_ua
-                        self.circuit_breaker.record_failure()
-                        raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
-                    self.circuit_breaker.record_success()
-                    return response
-
-        response = await _make_request()
+        response = await self._get(
+            f"{GUEST_API_BASE}/jobPosting/{job_id}",
+            {},
+            "LinkedIn guest job details failed",
+        )
         return parse_job_detail(response.text, job_id)
+
+    @trace_span("guest_api.typeahead")
+    async def typeahead(self, query: str, kind: str = "COMPANY") -> list[dict[str, str]]:
+        """Resolve a free-text name to LinkedIn entities via the typeahead API.
+
+        kind="COMPANY" returns companies with numeric ids usable as f_C;
+        kind="GEO" returns places with geoIds usable as the `geoId` param.
+        """
+        query = query.strip()
+        if not query:
+            return []
+        params: dict[str, Any] = {"query": query}
+        if kind.upper() == "GEO":
+            params.update({"origin": "jserp", "typeaheadType": "GEO", "geoTypes": "POPULATED_PLACE"})
+        else:
+            params.update({"typeaheadType": "COMPANY"})
+        try:
+            response = await self._get(TYPEAHEAD_BASE, params, "LinkedIn typeahead failed")
+        except Exception as exc:
+            logger.debug("Typeahead request failed", query=query, kind=kind, error=str(exc))
+            return []
+        return _parse_typeahead(response.text, kind)
+
+    async def resolve_company_id(self, name: str) -> str | None:
+        """Best-effort resolution of a company name to a numeric f_C id."""
+        key = name.strip().lower()
+        if not key:
+            return None
+        if key.isdigit():
+            return key
+        if key in self._company_id_cache:
+            return self._company_id_cache[key]
+        hits = await self.typeahead(name, "COMPANY")
+        chosen: str | None = None
+        exact = [hit for hit in hits if hit.get("name", "").lower() == key and hit.get("id")]
+        if exact:
+            chosen = exact[0]["id"]
+        elif hits and hits[0].get("id"):
+            chosen = hits[0]["id"]
+        self._company_id_cache[key] = chosen
+        return chosen
 
 
 def extract_job_id(value: str) -> str:
@@ -204,7 +273,8 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
     salary = _salary(schema.get("baseSalary"))
     employment = schema.get("employmentType")
     posted = str(schema.get("datePosted") or "")
-    skills = _extract_skills(clean_text(desc))
+    skills = match_skills(clean_text(desc))
+    applicants = _applicants(parser)
     return compact_dict(
         {
             "id": job_id,
@@ -216,6 +286,7 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
             "posted": posted[:10],
             "age": relative_age(posted),
             "skills": skills[:12],
+            "appl": applicants,
             "desc": truncate(desc, 900),
             "url": f"https://www.linkedin.com/jobs/view/{job_id}",
         }
@@ -306,24 +377,61 @@ def _job_type_code(value: str) -> str:
     }.get(value.lower(), value)
 
 
-def _extract_skills(text: str) -> list[str]:
-    known = [
-        "Python",
-        "JavaScript",
-        "TypeScript",
-        "React",
-        "Node",
-        "SQL",
-        "AWS",
-        "Azure",
-        "GCP",
-        "Docker",
-        "Kubernetes",
-        "Django",
-        "FastAPI",
-        "Machine Learning",
-        "AI",
-        "LLM",
-    ]
-    lower = text.lower()
-    return [skill for skill in known if skill.lower() in lower]
+_APPLICANTS_RE = re.compile(r"([\d,]+)\s*\+?\s*applicants?", re.IGNORECASE)
+
+
+def _applicants(parser: HTMLParser) -> str:
+    """Extract applicant volume from the job criteria/top card when present."""
+    for selector in (".num-applicants__caption", ".num-applicants__figure", "figcaption"):
+        node = parser.css_first(selector)
+        if not node:
+            continue
+        text = clean_text(node.text(deep=True))
+        match = _APPLICANTS_RE.search(text)
+        if match:
+            number = match.group(1).replace(",", "")
+            return f"{number}+" if "over" in text.lower() else number
+    return ""
+
+
+def _parse_typeahead(body: str, kind: str) -> list[dict[str, str]]:
+    """Parse typeahead responses defensively across known payload shapes."""
+    import json
+
+    hits: list[dict[str, str]] = []
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return hits
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            identifier = node.get("id") or node.get("entityId") or node.get("geoId")
+            urn = str(node.get("urn") or node.get("entityUrn") or "")
+            if identifier is None and urn:
+                urn_match = re.search(r"(\d{2,})\s*$", urn)
+                if urn_match:
+                    identifier = urn_match.group(1)
+            name = node.get("name") or node.get("title") or node.get("text") or node.get("displayName")
+            inner = node.get("company") or node.get("geo")
+            if name is None and isinstance(inner, dict):
+                name = inner.get("name")
+            if identifier and name:
+                hits.append({"id": str(identifier), "name": clean_text(str(name))})
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(data)
+    seen: set[str] = set()
+    unique: list[dict[str, str]] = []
+    for hit in hits:
+        key = f"{hit['id']}|{hit['name'].lower()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(hit)
+    return unique[:10]

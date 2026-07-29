@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     browser_user_data_dir: str | None = None
     exact_token_count: bool = False
     token_count_model: str = "claude-sonnet-4-5"
+    llm_model: str = "claude-sonnet-4-5"
+    metrics_max_rows: int = 5000
     anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     li_at: str | None = Field(default=None, validation_alias="LI_AT")

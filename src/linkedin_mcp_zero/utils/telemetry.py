@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import sys
 from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar, cast
@@ -24,7 +25,7 @@ _tracer = None
 
 def get_tracer() -> Any:
     global _tracer
-    if OPENTELEMETRY_AVAILABLE and _tracer is None:
+    if OPENTELEMETRY_AVAILABLE and _tracer is None and os.environ.get("LINKEDIN_MCP_ENABLE_TELEMETRY"):
         try:
             from opentelemetry import trace
 
@@ -43,7 +44,8 @@ def init_telemetry() -> None:
     if OPENTELEMETRY_AVAILABLE:
         try:
             provider = TracerProvider()
-            processor = BatchSpanProcessor(ConsoleSpanExporter())
+            # Export spans to stderr: stdout is reserved for MCP JSON-RPC frames.
+            processor = BatchSpanProcessor(ConsoleSpanExporter(out=sys.stderr))
             provider.add_span_processor(processor)
             trace.set_tracer_provider(provider)
             _tracer = trace.get_tracer("linkedin-mcp-zero")
@@ -56,17 +58,22 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def trace_span(name: str) -> Callable[[F], F]:
-    """Decorator to trace a synchronous or asynchronous function."""
+    """Decorator to trace a synchronous or asynchronous function.
+
+    The tracer is resolved lazily at call time (not at decoration time) so
+    functions decorated at import time are still traced once init_telemetry()
+    has run.
+    """
 
     def decorator(fn: F) -> F:
-        if not OPENTELEMETRY_AVAILABLE or _tracer is None:
-            return fn
-
         if inspect.iscoroutinefunction(fn):
 
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
-                with _tracer.start_as_current_span(name):
+                tracer = get_tracer()
+                if tracer is None:
+                    return await fn(*args, **kwargs)
+                with tracer.start_as_current_span(name):
                     return await fn(*args, **kwargs)
 
             return cast(F, async_wrapper)
@@ -74,7 +81,10 @@ def trace_span(name: str) -> Callable[[F], F]:
 
             @wraps(fn)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
-                with _tracer.start_as_current_span(name):
+                tracer = get_tracer()
+                if tracer is None:
+                    return fn(*args, **kwargs)
+                with tracer.start_as_current_span(name):
                     return fn(*args, **kwargs)
 
             return cast(F, sync_wrapper)

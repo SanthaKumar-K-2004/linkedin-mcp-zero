@@ -25,11 +25,16 @@ from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.storage.db import Storage
 
 
-def test_catalog_has_41_tools() -> None:
-    assert len(TOOLS) == 41
+def test_catalog_has_42_tools() -> None:
+    assert len(TOOLS) == 42
     assert tool_help("sj")["name"] == "search_jobs"
     assert tool_help("gus")["name"] == "get_usage_stats"
-    assert tool_help()["count"] == 41
+    assert tool_help()["count"] == 42
+    # every catalog alias must be unique, or tool_help lookups shadow each other
+    shorts = [str(row["short"]) for row in TOOLS]
+    assert len(shorts) == len(set(shorts))
+    names = {str(row["name"]) for row in TOOLS}
+    assert "deep_industry_analysis" in names
 
 
 def test_storage_alert_roundtrip(tmp_path: Path) -> None:

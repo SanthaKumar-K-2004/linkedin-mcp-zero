@@ -59,7 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--with-extra",
         action="append",
         choices=["browser", "multi", "pdf"],
-        default=[],
+        default=None,
         help="Include an optional package extra in installed/printed MCP config",
     )
     parser.add_argument(
@@ -95,7 +95,9 @@ def cli() -> None:
         else:
             _print_doctor(runtime)
         return
-    extras: list[PackageExtra] = args.with_extra
+    # NOTE: argparse's action="append" mutates its default list in place, so a
+    # default of [] would leak extras across parse_args() calls in one process.
+    extras: list[PackageExtra] = args.with_extra or []
     if args.print_config:
         Console().print_json(
             json.dumps(
@@ -142,7 +144,7 @@ def cli() -> None:
         api_key = settings.api_key
         if not api_key:
             api_key = secrets.token_hex(16)
-            console = Console()
+            console = Console(stderr=True)
             console.print(
                 "[bold yellow]WARNING:[/bold yellow] No API key configured for HTTP transport. "
                 f"Generated secure API key: [bold green]{api_key}[/bold green]"

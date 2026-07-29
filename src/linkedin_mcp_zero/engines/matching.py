@@ -5,6 +5,7 @@ import json
 import math
 import re
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import structlog
 
 from linkedin_mcp_zero.engines.public_api import PublicAPIEngine
 from linkedin_mcp_zero.storage.db import Storage
+from linkedin_mcp_zero.utils.skills import match_skills
 
 logger = structlog.get_logger()
 
@@ -84,8 +86,8 @@ class MatchingEngine:
         resume = self.storage.get_resume(id)
         if not resume:
             return {"error": "resume_not_found", "id": id}
-        skills = set(resume.get("skills", []))
-        search_kw = kw or " ".join(list(skills)[:3]) or "software engineer"
+        skills = sorted(set(resume.get("skills", [])))
+        search_kw = kw or " ".join(skills[:3]) or "software engineer"
         jobs = await self.public.search_jobs(search_kw, loc=loc, limit=limit)
         matches: list[dict[str, Any]] = []
         for job in jobs:
@@ -101,7 +103,9 @@ class MatchingEngine:
                     )
                     detail = {}
             text = " ".join(str(v) for v in {**job, **detail}.values())
-            matched = sorted(skill for skill in skills if skill.lower() in text.lower())
+            # Boundary-aware matching: avoids claiming "AI" for job text that
+            # merely contains words like "detail" or "email".
+            matched = match_skills(text, known=skills)
 
             # Combine keyword overlap score and semantic match score
             keyword_score = min(100, 40 + len(matched) * 15)
@@ -190,6 +194,9 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
     async def export_jobs(self, ids: list[str], fmt: str = "csv") -> dict[str, Any]:
         import asyncio
 
+        if len(ids) > 100:
+            return {"error": "too_many_ids", "hint": "Export at most 100 jobs per call.", "received": len(ids)}
+
         tasks = [self.public.get_job_details(job_id) for job_id in ids]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         jobs = []
@@ -201,7 +208,10 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
                 logger.warning("Failed to fetch job details for export", job_id=job_id, error=err_str)
 
         fmt = fmt.lower()
-        path = self.storage.exports_dir / f"jobs_export.{fmt}"
+        # Unique per-call filename: repeated exports no longer clobber earlier
+        # ones, and parallel exports cannot race on the same file.
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = self.storage.exports_dir / f"jobs_export_{stamp}.{fmt}"
         if fmt == "json":
             path.write_text(json.dumps(jobs, indent=2, ensure_ascii=True), encoding="utf-8")
         elif fmt == "csv":
@@ -213,9 +223,19 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
         return {"path": str(path), "fmt": fmt, "count": len(jobs)}
 
 
+_CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: Any) -> Any:
+    """Defuse spreadsheet formula injection when a cell opens Excel/Sheets."""
+    if isinstance(value, str) and value.startswith(_CSV_FORMULA_PREFIXES):
+        return f"'{value}"
+    return value
+
+
 def _write_csv(path: Path, jobs: list[dict[str, Any]]) -> None:
     fields = ["id", "t", "co", "loc", "sal", "type", "url"]
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(jobs)
+        writer.writerows({key: _csv_safe(job.get(key, "")) for key in fields} for job in jobs)

@@ -22,6 +22,7 @@ from linkedin_mcp_zero.metrics.tracking import track_async_tool, track_sync_tool
 from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.llm import LLMProvider
+from linkedin_mcp_zero.utils.salary import salary_meets_minimum
 from linkedin_mcp_zero.utils.telemetry import init_telemetry
 
 logger = structlog.get_logger()
@@ -43,12 +44,13 @@ class ConfirmExportPreferences(BaseModel):
 def create_app(settings: Settings | None = None) -> FastMCP:
     settings = settings or Settings()
     init_telemetry()
-    app = FastMCP("linkedin-mcp-zero")
+
     storage = Storage(settings)
     public = PublicAPIEngine(settings)
     llm_provider = LLMProvider(
         api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
+        model=settings.llm_model,
     )
     resume = ResumeEngine(storage, llm_provider)
     matching = MatchingEngine(storage, public, llm_provider)
@@ -71,7 +73,9 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         except Exception as e:
             logger.warning("Failed to close browser engine during shutdown", error=str(e))
 
-    app._lifespan = lifespan_handler
+    # Use the public lifespan constructor hook rather than patching the
+    # private app._lifespan attribute (which can silently break on upgrades).
+    app = FastMCP("linkedin-mcp-zero", lifespan=lifespan_handler)
 
     READ_ONLY_ANNOTATIONS = {
         "readOnlyHint": True,
@@ -120,7 +124,11 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         age: str = "",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        """Search LinkedIn jobs by keyword/location."""
+        """Search LinkedIn jobs by keyword/location.
+
+        age accepts friendly aliases ("24h", "7d", "30d") or raw LinkedIn
+        f_TPR codes ("r86400", "r604800", "r2592000").
+        """
         return await public.search_jobs(kw, loc, type, exp, remote, age, limit)
 
     @async_tool("public_no_login")
@@ -180,12 +188,20 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         type: JobType = "",
         exp: int | None = None,
         remote: bool | None = None,
+        work: Literal["", "onsite", "remote", "hybrid"] = "",
+        easy_apply: bool = False,
         age: str = "",
         sort: Literal["relevance", "date"] = "relevance",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        """Advanced public LinkedIn job search."""
-        return await public.search_jobs_advanced(kw, loc, co, type, exp, remote, age, sort, limit)
+        """Advanced public LinkedIn job search.
+
+        co is a company name resolved to LinkedIn's numeric company filter;
+        work selects on-site/remote/hybrid (overrides remote); easy_apply
+        filters to simplified-application jobs; age accepts "24h"/"7d"/"30d"
+        or raw f_TPR codes.
+        """
+        return await public.search_jobs_advanced(kw, loc, co, type, exp, remote, work, easy_apply, age, sort, limit)
 
     @sync_tool("local")
     def analyze_resume(path: str) -> dict[str, object]:
@@ -237,26 +253,39 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     @async_tool("public_no_login")
     async def check_saved_alerts(ids: list[int] | None = None) -> list[dict[str, object]]:
         """Run saved alerts and report new matches."""
-        results = []
-        for alert in storage.selected_alerts(ids):
-            jobs = await public.search_jobs(
-                kw=str(alert["kw"]),
-                loc=str(alert["loc"] or ""),
-                limit=DEFAULT_LIMIT,
-            )
+        import asyncio
+
+        async def _run_alert(alert: dict[str, Any]) -> dict[str, object]:
+            try:
+                jobs = await public.search_jobs(
+                    kw=str(alert["kw"]),
+                    loc=str(alert["loc"] or ""),
+                    limit=DEFAULT_LIMIT,
+                )
+            except Exception as exc:
+                # One failing alert must not take down the other alerts.
+                logger.warning("Alert check failed", alert_id=alert.get("id"), error=str(exc))
+                return {
+                    "alert_id": alert["id"],
+                    "name": alert["name"],
+                    "error": type(exc).__name__,
+                    "new_matches": 0,
+                    "jobs": [],
+                }
             seen = set(json.loads(str(alert.get("last_ids") or "[]")))
             current = [str(job.get("id", "")) for job in jobs if job.get("id")]
             new_jobs = [job for job in jobs if str(job.get("id", "")) not in seen]
             storage.update_alert_seen(int(alert["id"]), current)
-            results.append(
-                {
-                    "alert_id": alert["id"],
-                    "name": alert["name"],
-                    "new_matches": len(new_jobs),
-                    "jobs": new_jobs,
-                }
-            )
-        return results
+            return {
+                "alert_id": alert["id"],
+                "name": alert["name"],
+                "new_matches": len(new_jobs),
+                "jobs": new_jobs,
+            }
+
+        # Alerts are rate-limited inside the engine (1 rps bucket), so running
+        # them concurrently pipelines the waits instead of adding latency.
+        return list(await asyncio.gather(*[_run_alert(a) for a in storage.selected_alerts(ids)]))
 
     if settings.enable_browser:
 
@@ -328,7 +357,9 @@ def create_app(settings: Settings | None = None) -> FastMCP:
     async def get_engine_status() -> dict[str, object]:
         """Show available engines."""
         browser_status = await browser.status()
-        registered_count = sum(1 for k in app.local_provider._components if k.startswith("tool:"))
+        # Public FastMCP API; avoids the private local_provider._components
+        # attribute which can change between fastmcp releases.
+        registered_count = len(await app.list_tools())
         return {
             "tool_count": registered_count,
             "catalog_tool_count": len(TOOLS),
@@ -364,6 +395,18 @@ def create_app(settings: Settings | None = None) -> FastMCP:
                     "risk": "local_zero_account_risk",
                     "available": True,
                     "tools": 3,
+                },
+                {
+                    "name": "system",
+                    "risk": "local_zero_account_risk",
+                    "available": True,
+                    "tools": 5,
+                },
+                {
+                    "name": "llm_assisted",
+                    "risk": "local_zero_account_risk",
+                    "available": True,
+                    "tools": 7,
                 },
                 {
                     "name": "cdp_browser",
@@ -612,18 +655,11 @@ Market data context: {json.dumps(trends)}"""
             if not skills_match:
                 continue
 
-            # 2. Salary match
+            # 2. Salary match — annualized parser handles "$120,000",
+            # "150K", and hourly rates; jobs without salary info are kept.
             sal_str = str(merged_job.get("sal", ""))
-            if prefs.min_salary > 0 and sal_str:
-                import re
-
-                sal_match = re.search(r"(\d+)", sal_str)
-                if sal_match:
-                    sal_val = int(sal_match.group(1))
-                    if "K" in sal_str.upper() or "k" in sal_str:
-                        sal_val *= 1000
-                    if sal_val < prefs.min_salary:
-                        continue
+            if not salary_meets_minimum(sal_str, prefs.min_salary):
+                continue
 
             # 3. Remote/Distance matching
             loc_str = str(merged_job.get("loc", "")).lower()

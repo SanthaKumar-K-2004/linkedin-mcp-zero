@@ -77,7 +77,14 @@ def test_verify_client_config_ok(tmp_path) -> None:
         source="pypi",
     )
 
-    res = verify_client_config("claude-desktop", path=str(target))
+    # Hermetic: verify must not depend on a real uvx binary or a live
+    # `claude mcp list` subprocess on the machine running the tests.
+    with (
+        patch("linkedin_mcp_zero.config.install.shutil.which", return_value="/fake/bin/uvx"),
+        patch("linkedin_mcp_zero.config.install.subprocess.run") as mock_run,
+    ):
+        mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+        res = verify_client_config("claude-desktop", path=str(target))
     assert res.ok is True
     assert any(check["name"] == "mcpServers.linkedin-zero" and check["ok"] is True for check in res.checks)
 

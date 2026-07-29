@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import httpx
@@ -8,6 +9,28 @@ from authlib.integrations.starlette_client import OAuth
 
 logger = structlog.get_logger()
 oauth = OAuth()
+
+# Short-lived introspection results: without this, every single HTTP request
+# triggers a full round-trip to the authorization server.
+_INTROSPECT_TTL_SECONDS = 60
+_introspect_cache: dict[str, tuple[bool, float]] = {}
+
+
+def _cached_introspection(token: str) -> bool | None:
+    entry = _introspect_cache.get(token)
+    if entry is None:
+        if len(_introspect_cache) > 1000:
+            _introspect_cache.clear()
+        return None
+    valid, expires_at = entry
+    if expires_at < time.monotonic():
+        _introspect_cache.pop(token, None)
+        return None
+    return valid
+
+
+def _cache_introspection(token: str, valid: bool) -> None:
+    _introspect_cache[token] = (valid, time.monotonic() + _INTROSPECT_TTL_SECONDS)
 
 
 def setup_oauth(app: Any, settings: Any) -> None:
@@ -33,6 +56,10 @@ class OAuthMiddleware:
         if not self.settings or not self.settings.oauth_server_url:
             return True  # Bypass introspection if OAuth URL is not configured
 
+        cached = _cached_introspection(token)
+        if cached is not None:
+            return cached
+
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.post(
@@ -41,7 +68,9 @@ class OAuthMiddleware:
                     auth=(self.settings.oauth_client_id or "", self.settings.oauth_client_secret or ""),
                 )
                 if resp.status_code == 200:
-                    return bool(resp.json().get("active", False))
+                    valid = bool(resp.json().get("active", False))
+                    _cache_introspection(token, valid)
+                    return valid
         except Exception as e:
             logger.warning("OAuth token introspection failed", error=str(e))
         return False

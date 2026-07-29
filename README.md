@@ -277,8 +277,23 @@ uv run --extra dev pytest
 uv build
 ```
 
-Publish only the new version files:
+Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.2*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.5*
 ```
+
+## Search Filters Cheat Sheet
+
+`search_jobs` / `search_jobs_advanced` support LinkedIn's guest filters:
+
+| Param | Values | LinkedIn filter |
+|---|---|---|
+| `type` | `fulltime`, `parttime`, `contract`, `internship` | `f_JT` |
+| `exp` | 1=internship … 6=executive | `f_E` |
+| `work` | `onsite`, `remote`, `hybrid` (advanced only) | `f_WT` |
+| `remote` | `true` (back-compat alias for remote) | `f_WT=2` |
+| `easy_apply` | `true` (advanced only) | `f_AL` |
+| `age` | `24h`, `7d`, `30d` or raw `r86400`/`r604800`/`r2592000` | `f_TPR` |
+| `sort` | `relevance`, `date` (advanced only) | `sortBy` |
+| `co` | company name or `company_id` from `search_companies` | resolved → `f_C` |
