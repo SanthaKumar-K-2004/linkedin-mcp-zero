@@ -163,6 +163,7 @@ class GuestAPIClient:
             params["sortBy"] = "DD"
 
         rows: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
         start = 0
         # Advance the offset by the number of rows actually returned: the
         # guest endpoint may cap a page at 10 or 25 results depending on the
@@ -177,7 +178,21 @@ class GuestAPIClient:
             parsed = parse_search_results(response.text)
             if not parsed:
                 break
-            rows.extend(parsed)
+            fresh = 0
+            for row in parsed:
+                rid = str(row.get("id") or "")
+                # Live re-ranking between page fetches can push the same job
+                # onto two consecutive pages; keep results unique and stable.
+                if rid and rid in seen_ids:
+                    continue
+                if rid:
+                    seen_ids.add(rid)
+                rows.append(row)
+                fresh += 1
+            if fresh == 0:
+                # A page containing only already-seen jobs means the window
+                # has caught up with itself — further pages would too.
+                break
             start += len(parsed)
         return rows[:limit]
 
@@ -274,7 +289,12 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
         )
         link = card.css_first("a.base-card__full-link, a[href*='/jobs/view/']")
         url = clean_text(link.attributes.get("href", "") if link else "")
-        job_id = extract_job_id(url) if url else ""
+        try:
+            job_id = extract_job_id(url) if url else ""
+        except ParseError:
+            # One card with a malformed/redirect URL must not kill the whole
+            # page of results — keep the row, just without an id.
+            job_id = ""
         posted = ""
         time_tag = card.css_first("time")
         if time_tag:

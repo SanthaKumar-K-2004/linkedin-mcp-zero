@@ -285,7 +285,7 @@ uv build
 Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.11*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.12*
 ```
 
 ## Search Filters Cheat Sheet

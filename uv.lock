@@ -1843,7 +1843,7 @@ wheels = [
 
 [[package]]
 name = "linkedin-mcp-zero"
-version = "0.3.11"
+version = "0.3.12"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

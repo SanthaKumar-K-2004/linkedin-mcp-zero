@@ -209,7 +209,7 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 
 | Gate | Result |
 |---|---|
-| `pytest` | 144 passed, 3 live-skipped (was 86 + 1 env-dependent failure) |
+| `pytest` | 160 passed, 3 live-skipped (was 86 + 1 env-dependent failure) |
 | `ruff check` / `ruff format --check` | clean / clean |
 | `mypy --strict` | 42 source files, no issues |
 | `bandit -ll` | no issues |
@@ -263,3 +263,22 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
   `% 10**8` path collapsed distinct doc ids onto one point (silent document
   overwrite). Replaced with deterministic `uuid5`, and Qdrant search results
   now expose `doc_id` exactly like the fallback backend.
+
+## v0.3.12 addendum (coverage-driven audit)
+
+Coverage mapping put `engines/public_api.py` at **24%** — the least-tested
+critical path despite wrapping every public tool. Two real defects surfaced
+while pinning its behavior:
+
+- **Cross-page duplicates**: the guest search advances `start` by the actual
+  page size, but LinkedIn re-ranks live between fetches; the same job can
+  land on two consecutive pages and appear twice in output (and get
+  double-counted by `get_job_trends`/`get_industry_insights`). Pagination now
+  dedupes by job id and stops on an all-repeat page.
+- **Fragile page parse**: `parse_search_results` raised `ParseError` when a
+  single card's URL didn't match the 6+ digit id pattern — one weird card
+  discarded up to 25 good neighbours. Malformed cards now degrade to an
+  id-less row.
+
+Plus 16 behavioral engine/CLI tests (`tests/test_public_api_engine.py`):
+public_api 24% → 99%, total 68% → 73%.

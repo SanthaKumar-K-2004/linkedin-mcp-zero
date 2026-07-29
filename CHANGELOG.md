@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.3.12] - 2026-07-29
+### Fixed
+- **Duplicate jobs across paginated search results**: LinkedIn re-ranks
+  between page fetches, so the same posting could appear on two pages and
+  show up twice in results (also double-weighting trend/insight counts that
+  built on them). Pages are now deduped by job id, and a page of pure repeats
+  is treated as window exhaustion
+- **One malformed card URL no longer kills a whole page of search results**:
+  `extract_job_id` raised `ParseError` inside `parse_search_results` for any
+  card whose link didn't match the id pattern, discarding up to 25 good rows
+  along with the bad one. The card is now kept (id-less) and the parse
+  continues
+
+### Added
+- **16 behavioral tests for `PublicAPIEngine`** (was the least-covered
+  critical path at 24%, now 99%): search/detail caching, company & geo
+  resolution wiring, honest unresolvable-company fallback, company-jobs id
+  path, typeahead company search + jobs aggregation fallback, profile shape,
+  trends/industry aggregation, CLI `--doctor --json` and `--print-config`
+- Total coverage 68% → 73%
+
 ## [0.3.11] - 2026-07-29
 ### Added
 - **Job criteria mining** (hidden structured data): every LinkedIn job detail
