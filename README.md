@@ -280,7 +280,7 @@ uv build
 Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.7*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.8*
 ```
 
 ## Search Filters Cheat Sheet
@@ -298,3 +298,4 @@ UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.7*
 | `sort` | `relevance`, `date` (advanced only) | `sortBy` |
 | `co` | company name or `company_id` from `search_companies` | resolved → `f_C` |
 | `geo` | place name or numeric geoId (advanced only) | resolved → `geoId` |
+| `distance` | radius in miles around loc/geo, max 100 (advanced only) | `distance` |

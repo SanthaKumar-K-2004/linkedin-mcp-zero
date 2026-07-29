@@ -306,3 +306,88 @@ def test_allowed_resume_dirs_comma_env(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("LINKEDIN_MCP_ALLOWED_RESUME_DIRS", f"{first},{second}")
     settings = Settings()
     assert settings.allowed_resume_dirs == [str(first), str(second)]
+
+
+# --- salary in description fallback -------------------------------------------------
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "$120,000 - $150,000 a year",
+        "$120K-$150K",
+        "$120K to $150K",
+        "$45 - $55 per hour",
+        "$45.00/hr",
+    ],
+)
+def test_desc_salary_explicit_forms(snippet: str) -> None:
+    from linkedin_mcp_zero.scraping.guest_api import _desc_salary
+
+    assert _desc_salary(f"Great role! Compensation: {snippet}. Apply now.") != ""
+
+
+def test_desc_salary_schema_preferred_over_desc() -> None:
+    html = """
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"JobPosting","title":"Dev","description":"x",
+     "baseSalary":{"@type":"MonetaryAmount","currency":"USD",
+     "value":{"@type":"QuantitativeValue","minValue":150000,"maxValue":200000,"unitText":"YEAR"}}}
+    </script>
+    """
+    detail = parse_job_detail(html, "1")
+    assert detail["sal"] == "$150K-200K/yr"
+    assert detail["sal_src"] == "schema"
+
+
+def test_desc_salary_fallback_marks_source() -> None:
+    html = """
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"JobPosting","title":"Dev",
+     "description":"We pay $120K-$150K depending on experience."}
+    </script>
+    """
+    detail = parse_job_detail(html, "1")
+    assert detail["sal"] == "$120K-$150K"
+    assert detail["sal_src"] == "desc"
+
+
+def test_desc_salary_rejects_unrelated_money() -> None:
+    from linkedin_mcp_zero.scraping.guest_api import _desc_salary
+
+    assert _desc_salary("You will save the company $5,000 in equipment costs.") == ""
+
+
+# --- distance param ------------------------------------------------------------------
+def test_search_params_include_distance_and_geo() -> None:
+    from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
+
+    client = GuestAPIClient()
+    captured: dict[str, Any] = {}
+
+    class _Resp:
+        text = ""
+
+    async def fake_get(url: str, params: dict[str, Any], label: str) -> _Resp:
+        captured.update(params)
+        return _Resp()
+
+    with patch.object(client, "_get", side_effect=fake_get):
+        asyncio.run(client.search_jobs("dev", geo_id="90000084", distance=250, limit=5))
+    assert captured["geoId"] == "90000084"
+    assert captured["distance"] == "100"  # clamped
+
+
+# --- doctor guest api probe ------------------------------------------------------------
+def test_doctor_probe_disabled_by_default() -> None:
+    from linkedin_mcp_zero.config.autodetect import detect_runtime
+
+    runtime = detect_runtime(None, probe=False)
+    assert runtime["guest_api"] is None
+
+
+def test_probe_guest_api_handles_unreachable() -> None:
+    import httpx
+
+    from linkedin_mcp_zero.config import autodetect
+
+    with patch.object(httpx, "Client", side_effect=httpx.ConnectError("nope")):
+        assert autodetect._probe_guest_api().startswith("unreachable")

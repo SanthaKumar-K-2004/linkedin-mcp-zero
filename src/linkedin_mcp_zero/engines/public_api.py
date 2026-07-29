@@ -64,11 +64,27 @@ class PublicAPIEngine:
         work: str = "",
         easy_apply: bool = False,
         geo: str = "",
+        distance: int | None = None,
         age: str = "",
         sort: str = "relevance",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        key = ("search_jobs_advanced", kw, loc, co, type, exp, remote, work, easy_apply, geo, age, sort, limit)
+        key = (
+            "search_jobs_advanced",
+            kw,
+            loc,
+            co,
+            type,
+            exp,
+            remote,
+            work,
+            easy_apply,
+            geo,
+            distance,
+            age,
+            sort,
+            limit,
+        )
         cached = self.cache.get(key)
         if cached is not None:
             return cast(list[dict[str, object]], cached)
@@ -92,6 +108,7 @@ class PublicAPIEngine:
             loc=loc,
             company_id=company_id,
             geo_id=geo_id,
+            distance=distance,
             job_type=type,
             exp=exp,
             remote=remote,

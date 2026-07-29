@@ -10,7 +10,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
+from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME, GUEST_API_BASE
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,7 @@ class RuntimeStatus:
     optional: dict[str, bool]
     mode: str
     notes: list[str]
+    guest_api: str | None = None
 
 
 def detect_chrome() -> str | None:
@@ -50,7 +51,7 @@ def detect_chrome() -> str | None:
     return None
 
 
-def detect_runtime(data_dir: str | None = None) -> dict[str, object]:
+def detect_runtime(data_dir: str | None = None, probe: bool = False) -> dict[str, object]:
     ram_total, ram_available = _memory_mb()
     disk_free = _disk_free_mb(data_dir)
     optional = {
@@ -60,6 +61,14 @@ def detect_runtime(data_dir: str | None = None) -> dict[str, object]:
         "patchright": _has_module("patchright.async_api"),
     }
     mode, notes = _recommend_mode(ram_available, disk_free, optional)
+    guest_api: str | None = None
+    if probe:
+        guest_api = _probe_guest_api()
+        if guest_api != "ok":
+            notes.append(
+                "LinkedIn guest API is NOT reachable from this network "
+                "(firewall/proxy/geo-block?) — public job tools will fail here."
+            )
     status = RuntimeStatus(
         os=platform.system(),
         python=platform.python_version(),
@@ -78,8 +87,27 @@ def detect_runtime(data_dir: str | None = None) -> dict[str, object]:
         optional=optional,
         mode=mode,
         notes=notes,
+        guest_api=guest_api,
     )
     return asdict(status)
+
+
+def _probe_guest_api(timeout: float = 3.0) -> str:
+    """Check that the LinkedIn guest jobs endpoint is reachable from here."""
+    try:
+        import httpx
+
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            response = client.get(
+                f"{GUEST_API_BASE}/seeMoreJobPostings/search",
+                params={"keywords": "python", "start": 0},
+            )
+        if response.status_code < 500:
+            # 200 = works; 4xx still proves the host is reachable (auth/429).
+            return "ok"
+        return f"http_{response.status_code}"
+    except Exception as exc:
+        return f"unreachable:{type(exc).__name__}"
 
 
 def _data_dir(data_dir: str | None = None) -> Path:

@@ -109,6 +109,7 @@ class GuestAPIClient:
         *,
         company_id: str = "",
         geo_id: str = "",
+        distance: int | None = None,
         job_type: str = "",
         exp: int | None = None,
         remote: bool | None = None,
@@ -133,6 +134,9 @@ class GuestAPIClient:
             # Numeric geoId pins the search to a place unambiguously (unlike
             # free-text locations: "Cambridge" UK vs MA, "Portland" OR vs ME).
             params["geoId"] = geo_id
+        if distance and distance > 0:
+            # Search radius in miles around loc/geoId (LinkedIn default: 25).
+            params["distance"] = str(min(distance, 100))
         if job_type:
             params["f_JT"] = _job_type_code(job_type)
         if exp:
@@ -296,6 +300,13 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
     )
     desc = str(schema.get("description") or _first_text(parser, [".show-more-less-html__markup"]))
     salary = _salary(schema.get("baseSalary"))
+    salary_source = "schema" if salary else ""
+    if not salary:
+        # Many postings carry compensation only inside the description text.
+        desc_salary = _desc_salary(clean_text(desc))
+        if desc_salary:
+            salary = desc_salary
+            salary_source = "desc"
     employment = schema.get("employmentType")
     posted = str(schema.get("datePosted") or "")
     skills = match_skills(clean_text(desc))
@@ -307,6 +318,7 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
             "co": company,
             "loc": compact_location(location),
             "sal": salary,
+            "sal_src": salary_source,
             "type": _employment_type(employment),
             "posted": posted[:10],
             "age": relative_age(posted),
@@ -403,6 +415,51 @@ def _job_type_code(value: str) -> str:
 
 
 _APPLICANTS_RE = re.compile(r"([\d,]+)\s*\+?\s*applicants?", re.IGNORECASE)
+
+# Salary-in-description patterns, most specific first:
+#   $120,000 - $150,000 | $120K-$150K | $120K to $150K | $45-$55/hr | $45.00/hour
+_SALARY_PATTERNS = [
+    re.compile(
+        r"\$\d{1,3}(?:,\d{3})+(?:\s*(?:-|–|—|to)\s*\$\d{1,3}(?:,\d{3})+)?"
+        r"(?:\s*(?:USD\s*)?(?:a|per)\s*(?:year|yr))?"
+    ),
+    re.compile(r"\$\d{2,3}[Kk](?:\s*(?:-|–|—|to)\s*\$\d{2,3}[Kk])?(?:\s*(?:a|per)\s*(?:year|yr))?"),
+    re.compile(r"\$\d{2,3}(?:\.\d{1,2})?(?:\s*(?:-|–|—|to)\s*\$\d{2,3}(?:\.\d{1,2})?)?\s*(?:/|per\s*)\s*(?:hr|hour)"),
+]
+
+
+_SALARY_CONTEXT_RE = re.compile(r"salary|compensation|\bpay\b|\bbase\b|\bofte?r\b|\bwage\b", re.IGNORECASE)
+
+
+def _desc_salary(text: str) -> str:
+    """Best-effort salary extraction from free-text job descriptions.
+
+    A match is accepted outright when it is a range or carries an interval
+    suffix ("... - $150,000", "$45/hr", "$120K a year"). A bare single figure
+    ("$5,000") is only accepted with nearby compensation context, so phrases
+    like "save $5,000 on equipment" do not masquerade as pay.
+    """
+    for pattern in _SALARY_PATTERNS:
+        for match in pattern.finditer(text):
+            snippet = match.group(0)
+            explicit = (
+                "-" in snippet
+                or "–" in snippet
+                or "—" in snippet
+                or " to " in snippet.lower()
+                or "/" in snippet
+                or "year" in snippet.lower()
+                or "yr" in snippet.lower()
+                or "hour" in snippet.lower()
+                or "hr" in snippet.lower()
+            )
+            if not explicit:
+                start = max(0, match.start() - 80)
+                end = min(len(text), match.end() + 80)
+                if not _SALARY_CONTEXT_RE.search(text[start:end]):
+                    continue
+            return truncate(snippet, 60)
+    return ""
 
 
 def _applicants(parser: HTMLParser) -> str:

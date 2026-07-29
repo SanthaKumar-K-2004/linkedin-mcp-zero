@@ -157,6 +157,19 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 - **Voyager/private API** stays a gated placeholder (account risk) — by design.
 - **Patchright fallback** remains opt-in — by design.
 
+### Shipped in v0.3.8 (post-audit follow-ups)
+
+- **`distance` radius param** (research-confirmed upstream filter) on
+  `search_jobs_advanced`, clamped at 100 miles.
+- **Salary-from-description fallback** — postings without schema-level
+  `baseSalary` now still yield `sal` (from ranges/intervals in the text) with
+  an explicit `sal_src: schema|desc` provenance marker; context-guarded so
+  unrelated money mentions are not misread as pay.
+- **Doctor reachability probe** — `--doctor` detects firewall/geo blocks of
+  the guest API (verified in this sandbox: correctly reports
+  `unreachable:ConnectError`); opt-in (`probe=True`) so
+  `get_engine_status` never pays the 3s timeout.
+
 ### Shipped in v0.3.7 (post-audit follow-ups)
 
 - **Public health/discovery paths** — `/health` and `/.well-known/*` were

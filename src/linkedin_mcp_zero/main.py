@@ -89,7 +89,7 @@ def cli() -> None:
 
     configure_logging(settings.log_level)
     if args.doctor:
-        runtime = detect_runtime(settings.data_dir)
+        runtime = detect_runtime(settings.data_dir, probe=True)
         if args.json_output:
             Console().print_json(json.dumps(runtime, default=str))
         else:
@@ -206,6 +206,10 @@ def _print_doctor(runtime: dict[str, object]) -> None:
     console.print(f"Data dir: {runtime.get('data_dir')}")
     console.print(f"Chrome: {runtime.get('chrome') or 'not found'}")
     console.print(f"CDP URL: {runtime.get('cdp_url')}")
+    guest_api = runtime.get("guest_api")
+    if guest_api is not None:
+        style = "green" if guest_api == "ok" else "red"
+        console.print(f"LinkedIn guest API: [{style}]{guest_api}[/{style}]")
     console.print(f"Recommended mode: {runtime.get('mode')}")
     if isinstance(optional, dict):
         console.print("Optional packages:")

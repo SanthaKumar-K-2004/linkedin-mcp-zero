@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.8] - 2026-07-29
+### Added
+- `search_jobs_advanced(distance=...)` — search radius in miles (max 100)
+  around `loc`/`geo`, mapped to LinkedIn's `distance` param
+- Salary-from-description fallback: when a posting has no schema salary,
+  `get_job_details` extracts ranges/intervals from the description text
+  ("$120K-$150K", "$120,000 - $150,000 a year", "$45-$55/hr") and marks the
+  provenance with `sal_src: schema|desc`; bare figures need nearby salary
+  context so "save $5,000" never becomes salary
+- `--doctor` now probes guest-API reachability (`LinkedIn guest API: ok` vs
+  `unreachable:<ExcType>`) and warns when the network blocks LinkedIn;
+  probe is opt-in so `get_engine_status` stays instant
+
 ## [0.3.7] - 2026-07-29
 ### Fixed
 - API-key middleware blocked `/health` and `/.well-known/*` behind auth —
