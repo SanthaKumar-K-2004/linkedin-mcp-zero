@@ -157,6 +157,16 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 - **Voyager/private API** stays a gated placeholder (account risk) — by design.
 - **Patchright fallback** remains opt-in — by design.
 
+### Shipped in v0.3.9 (post-audit follow-ups)
+
+- **`SECURITY.md`** — supported versions, private reporting, full threat
+  model; GitHub surfaces it on the Security tab.
+- **Live smoke suite** — `tests/test_live_guest_api.py` (`live` marker,
+  `LINKEDIN_MCP_LIVE=1`): real search/details/typeahead calls with graceful
+  skips on geo-blocks; keeps CI hermetic while enabling real-world validation.
+- **Salary provenance passthrough** — `get_job_salary` carries `sal_src`.
+- **Proxy consistency** — multi-board fallback now honors HTTP(S)_PROXY too.
+
 ### Shipped in v0.3.8 (post-audit follow-ups)
 
 - **`distance` radius param** (research-confirmed upstream filter) on

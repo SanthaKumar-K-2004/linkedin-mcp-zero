@@ -7,11 +7,17 @@ from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT
 from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
 
 
-async def search_jobs_multi(kw: str, loc: str = "", limit: int = 5, age: int = 168) -> list[dict[str, Any]]:
+async def search_jobs_multi(
+    kw: str,
+    loc: str = "",
+    limit: int = 5,
+    age: int = 168,
+    proxy: str | None = None,
+) -> list[dict[str, Any]]:
     try:
         from jobspy import scrape_jobs
     except ImportError:
-        return await _linkedin_fallback(kw, loc, limit)
+        return await _linkedin_fallback(kw, loc, limit, proxy=proxy)
 
     limit = max(1, min(limit, 25))
     # jobspy is a synchronous, network-heavy library (5 boards, can take
@@ -40,8 +46,8 @@ async def search_jobs_multi(kw: str, loc: str = "", limit: int = 5, age: int = 1
     return rows
 
 
-async def _linkedin_fallback(kw: str, loc: str, limit: int) -> list[dict[str, Any]]:
-    client = GuestAPIClient()
+async def _linkedin_fallback(kw: str, loc: str, limit: int, proxy: str | None = None) -> list[dict[str, Any]]:
+    client = GuestAPIClient(proxy=proxy)
     try:
         jobs = await client.search_jobs(kw=kw, loc=loc, limit=max(1, min(limit, DEFAULT_LIMIT)))
     finally:

@@ -138,8 +138,8 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         limit: int = 5,
         age: int = 168,
     ) -> list[dict[str, object]]:
-        """Search multiple public job boards."""
-        return await multi_search(kw, loc, limit, age)
+        """Search multiple public job boards (age is in hours for jobspy)."""
+        return await multi_search(kw, loc, limit, age, proxy=settings.https_proxy or settings.http_proxy)
 
     @async_tool("public_no_login")
     async def get_job_details(id: str) -> dict[str, object]:

@@ -137,11 +137,17 @@ class PublicAPIEngine:
 
     async def get_job_salary(self, id: str) -> dict[str, object]:
         details = await self.get_job_details(id)
-        return {
+        sal = details.get("sal", "")
+        result: dict[str, object] = {
             "id": details.get("id", id),
-            "sal": details.get("sal", ""),
-            "source": "schema_or_public_page" if details.get("sal") else "not_found",
+            "sal": sal,
+            "source": ("schema_or_public_page" if sal else "not_found"),
         }
+        # Preserve the extraction provenance (structured schema vs free-text
+        # description fallback) so callers can weight confidence accordingly.
+        if sal and details.get("sal_src"):
+            result["sal_src"] = details["sal_src"]
+        return result
 
     async def get_company_jobs(
         self,

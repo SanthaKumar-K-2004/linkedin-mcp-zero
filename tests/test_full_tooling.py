@@ -224,6 +224,9 @@ async def test_multi_board_falls_back_to_linkedin(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(sys.modules, "jobspy", None)
 
     class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
         async def search_jobs(self, kw: str, loc: str = "", limit: int = 5):
             return [{"id": "1", "t": kw, "loc": loc, "url": "https://example.com"}]
 

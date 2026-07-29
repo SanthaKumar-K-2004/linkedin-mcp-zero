@@ -391,3 +391,43 @@ def test_probe_guest_api_handles_unreachable() -> None:
 
     with patch.object(httpx, "Client", side_effect=httpx.ConnectError("nope")):
         assert autodetect._probe_guest_api().startswith("unreachable")
+
+
+# --- salary source passthrough ------------------------------------------------------
+def test_get_job_salary_preserves_sal_src() -> None:
+    from linkedin_mcp_zero.config.settings import Settings as _S
+    from linkedin_mcp_zero.engines.public_api import PublicAPIEngine
+
+    engine = PublicAPIEngine(_S(data_dir=None))
+
+    async def fake_details(job_id: str) -> dict[str, object]:
+        return {"id": job_id, "sal": "$120K-$150K", "sal_src": "desc"}
+
+    engine.get_job_details = fake_details  # type: ignore[method-assign]
+    result = asyncio.run(engine.get_job_salary("42"))
+    assert result["sal"] == "$120K-$150K"
+    assert result["sal_src"] == "desc"
+
+
+def test_multi_fallback_guest_client_gets_proxy() -> None:
+    import linkedin_mcp_zero.engines.multi_board as mb
+
+    captured: dict[str, Any] = {}
+
+    class _FakeClient:
+        def __init__(self, proxy: str | None = None, timeout: float = 15) -> None:
+            captured["proxy"] = proxy
+
+        async def search_jobs(self, **kwargs: Any) -> list[dict[str, Any]]:
+            return [{"id": "1", "t": "x", "co": "y"}]
+
+        async def close(self) -> None:
+            return None
+
+    with (
+        patch.dict(sys.modules, {"jobspy": None}),
+        patch.object(mb, "GuestAPIClient", _FakeClient),
+    ):
+        rows = asyncio.run(mb.search_jobs_multi("dev", "", 5, 168, proxy="http://127.0.0.1:8080"))
+    assert captured["proxy"] == "http://127.0.0.1:8080"
+    assert rows[0]["site"] == "linkedin"

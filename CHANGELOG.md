@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.9] - 2026-07-29
+### Added
+- `SECURITY.md` — supported versions, private reporting channel, and a full
+  threat model (public scraping, local data, token counting, HTTP transport,
+  browser mode, export injection)
+- Live integration smoke suite (`tests/test_live_guest_api.py`, marked
+  `live`, skipped unless `LINKEDIN_MCP_LIVE=1`): search, job details, and
+  company typeahead against the real guest API
+
+### Fixed
+- `get_job_salary` now preserves the salary extraction provenance (`sal_src`
+  schema/desc) from `get_job_details`
+- Multi-board LinkedIn fallback now honors `HTTP_PROXY`/`HTTPS_PROXY` like
+  every other guest-API path (it created a bare client before)
+
 ## [0.3.8] - 2026-07-29
 ### Added
 - `search_jobs_advanced(distance=...)` — search radius in miles (max 100)
