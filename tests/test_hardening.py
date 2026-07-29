@@ -167,6 +167,68 @@ def test_search_jobs_multi_respects_limit_and_threads() -> None:
     fake_scrape.assert_called_once()
 
 
+# --- geo id resolution ----------------------------------------------------------
+def test_resolve_geo_id_numeric_passthrough_no_network() -> None:
+    from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
+
+    client = GuestAPIClient()
+    assert asyncio.run(client.resolve_geo_id("103644278")) == "103644278"
+    assert asyncio.run(client.resolve_geo_id("")) is None
+
+
+def test_geo_typeahead_params_shape() -> None:
+    from linkedin_mcp_zero.scraping.guest_api import GuestAPIClient
+
+    client = GuestAPIClient()
+    captured: dict[str, Any] = {}
+
+    class _Resp:
+        text = '{"hits": [{"geoId": 90000084, "name": "San Francisco Bay Area"}]}'
+
+    async def fake_get(url: str, params: dict[str, Any], label: str) -> _Resp:
+        captured.update(params)
+        return _Resp()
+
+    with patch.object(client, "_get", side_effect=fake_get):
+        hits = asyncio.run(client.typeahead("san francisco", "GEO"))
+    assert captured["typeaheadType"] == "GEO"
+    assert captured["geoTypes"] == "POPULATED_PLACE"
+    assert hits[0]["id"] == "90000084"
+
+
+# --- xlsx export ------------------------------------------------------------------
+def test_write_xlsx_valid_zip_and_injection_safe(tmp_path: Path) -> None:
+    import xml.etree.ElementTree as ET
+    import zipfile
+
+    from linkedin_mcp_zero.engines.matching import _write_xlsx
+
+    path = tmp_path / "jobs.xlsx"
+    _write_xlsx(path, [{"id": "1", "t": "=EVIL()", "co": "Acme & Sons"}])
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+        assert "[Content_Types].xml" in names
+        assert "xl/worksheets/sheet1.xml" in names
+        sheet = archive.read("xl/worksheets/sheet1.xml")
+    root = ET.fromstring(sheet)  # must be well-formed XML
+    assert root.tag.endswith("worksheet")
+    text = sheet.decode("utf-8")
+    assert "<f>" not in text and "<f " not in text  # no formula elements ever
+    assert "&amp; Sons" in text  # XML escaping applied
+    assert "=EVIL()" in text  # kept as literal inline string
+
+
+# --- relative age future dates -----------------------------------------------------
+def test_relative_age_future_date_is_clamped() -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from linkedin_mcp_zero.utils.compress import relative_age
+
+    now = datetime(2026, 7, 29, tzinfo=timezone.utc)
+    future = (now + timedelta(days=2)).isoformat()
+    assert relative_age(future, now) == "0h"
+
+
 # --- typeahead parsing -----------------------------------------------------------
 def test_parse_typeahead_company_shapes() -> None:
     body = json.dumps({"hits": [{"id": 1441, "name": "Google"}, {"urn": "urn:li:company:9999", "title": "Acme"}]})

@@ -64,6 +64,10 @@ def relative_age(date_text: str | None, now: datetime | None = None) -> str:
         return text
     current = now or datetime.now(timezone.utc)
     delta = current.astimezone(timezone.utc) - posted.astimezone(timezone.utc)
+    if delta.total_seconds() < 0:
+        # Future-dated posting (clock skew or stale markup): report "now"
+        # instead of a nonsense negative/near-24h value.
+        return "0h"
     if delta.days >= 30:
         return f"{delta.days // 30}mo"
     if delta.days >= 7:

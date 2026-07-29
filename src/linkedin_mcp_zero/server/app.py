@@ -190,6 +190,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         remote: bool | None = None,
         work: Literal["", "onsite", "remote", "hybrid"] = "",
         easy_apply: bool = False,
+        geo: str = "",
         age: str = "",
         sort: Literal["relevance", "date"] = "relevance",
         limit: int = DEFAULT_LIMIT,
@@ -197,11 +198,15 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Advanced public LinkedIn job search.
 
         co is a company name resolved to LinkedIn's numeric company filter;
+        geo is a place name or numeric geoId that pins the search to an exact
+        place (better than loc when a name is ambiguous, e.g. Cambridge);
         work selects on-site/remote/hybrid (overrides remote); easy_apply
         filters to simplified-application jobs; age accepts "24h"/"7d"/"30d"
         or raw f_TPR codes.
         """
-        return await public.search_jobs_advanced(kw, loc, co, type, exp, remote, work, easy_apply, age, sort, limit)
+        return await public.search_jobs_advanced(
+            kw, loc, co, type, exp, remote, work, easy_apply, geo, age, sort, limit
+        )
 
     @sync_tool("local")
     def analyze_resume(path: str) -> dict[str, object]:

@@ -62,6 +62,7 @@ class GuestAPIClient:
         self._session: AsyncSession[Any] | None = None
         self.circuit_breaker = CircuitBreaker()
         self._company_id_cache: dict[str, str | None] = {}
+        self._geo_id_cache: dict[str, str | None] = {}
 
     async def _get_session(self) -> AsyncSession[Any]:
         if self._session is None:
@@ -107,6 +108,7 @@ class GuestAPIClient:
         loc: str = "",
         *,
         company_id: str = "",
+        geo_id: str = "",
         job_type: str = "",
         exp: int | None = None,
         remote: bool | None = None,
@@ -127,6 +129,10 @@ class GuestAPIClient:
             # f_C requires LinkedIn's numeric company id; resolve names via
             # resolve_company_id() before calling.
             params["f_C"] = company_id
+        if geo_id:
+            # Numeric geoId pins the search to a place unambiguously (unlike
+            # free-text locations: "Cambridge" UK vs MA, "Portland" OR vs ME).
+            params["geoId"] = geo_id
         if job_type:
             params["f_JT"] = _job_type_code(job_type)
         if exp:
@@ -208,14 +214,33 @@ class GuestAPIClient:
         if key in self._company_id_cache:
             return self._company_id_cache[key]
         hits = await self.typeahead(name, "COMPANY")
-        chosen: str | None = None
-        exact = [hit for hit in hits if hit.get("name", "").lower() == key and hit.get("id")]
-        if exact:
-            chosen = exact[0]["id"]
-        elif hits and hits[0].get("id"):
-            chosen = hits[0]["id"]
+        chosen = _best_hit_id(hits, key)
         self._company_id_cache[key] = chosen
         return chosen
+
+    async def resolve_geo_id(self, place: str) -> str | None:
+        """Best-effort resolution of a place name to a numeric geoId."""
+        key = place.strip().lower()
+        if not key:
+            return None
+        if key.isdigit():
+            return key
+        if key in self._geo_id_cache:
+            return self._geo_id_cache[key]
+        hits = await self.typeahead(place, "GEO")
+        chosen = _best_hit_id(hits, key)
+        self._geo_id_cache[key] = chosen
+        return chosen
+
+
+def _best_hit_id(hits: list[dict[str, str]], query_key: str) -> str | None:
+    """Pick a typeahead hit id, preferring an exact case-insensitive name match."""
+    exact = [hit for hit in hits if hit.get("name", "").lower() == query_key and hit.get("id")]
+    if exact:
+        return exact[0]["id"]
+    if hits and hits[0].get("id"):
+        return hits[0]["id"]
+    return None
 
 
 def extract_job_id(value: str) -> str:

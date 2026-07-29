@@ -156,9 +156,17 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 
 - **Voyager/private API** stays a gated placeholder (account risk) — by design.
 - **Patchright fallback** remains opt-in — by design.
-- `geoId` passthrough: `loc` already accepts free text; adding a dedicated
-  geo tool is easy now that `typeahead(kind="GEO")` exists.
-- XLSX export still returns the honest `xlsx_not_enabled` hint.
+
+### Shipped in v0.3.6 (previously deferred, now done)
+
+- **`geoId` passthrough** — `search_jobs_advanced(geo=...)` resolves place
+  names via the GEO typeahead endpoint (`resolve_geo_id`, cached) or accepts
+  numeric geoIds directly; kills location-name ambiguity (Cambridge UK vs MA).
+- **XLSX export** — implemented as a dependency-free OOXML writer (stdlib
+  `zipfile` + inline-string XML cells; formula-injection immune by
+  construction). README's "CSV/JSON/XLSX" claim is now true.
+- **`relative_age` future-date clamp** — skewed/stale markup no longer yields
+  near-24h nonsense values.
 
 ## 4. Verification matrix (final state)
 

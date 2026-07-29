@@ -63,11 +63,12 @@ class PublicAPIEngine:
         remote: bool | None = None,
         work: str = "",
         easy_apply: bool = False,
+        geo: str = "",
         age: str = "",
         sort: str = "relevance",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        key = ("search_jobs_advanced", kw, loc, co, type, exp, remote, work, easy_apply, age, sort, limit)
+        key = ("search_jobs_advanced", kw, loc, co, type, exp, remote, work, easy_apply, geo, age, sort, limit)
         cached = self.cache.get(key)
         if cached is not None:
             return cast(list[dict[str, object]], cached)
@@ -78,11 +79,19 @@ class PublicAPIEngine:
         if unfiltered_company:
             await self.bucket.acquire()
             company_id = await self.client.resolve_company_id(unfiltered_company) or ""
+        # geoId pins results to an exact place; accepts either the numeric id
+        # straight from LinkedIn or a place name resolved via typeahead.
+        geo_id = ""
+        unfiltered_geo = geo.strip()
+        if unfiltered_geo:
+            await self.bucket.acquire()
+            geo_id = await self.client.resolve_geo_id(unfiltered_geo) or ""
         await self.bucket.acquire()
         result = await self.client.search_jobs(
             kw=kw,
             loc=loc,
             company_id=company_id,
+            geo_id=geo_id,
             job_type=type,
             exp=exp,
             remote=remote,

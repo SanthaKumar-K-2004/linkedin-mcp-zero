@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.6] - 2026-07-29
+### Added
+- `search_jobs_advanced(geo=...)` — place names or numeric geoIds pinned via
+  the GEO typeahead endpoint (`typeaheadHits?typeaheadType=GEO`); resolves
+  ambiguous location names ("Cambridge", "Portland") deterministically
+- `GuestAPIClient.resolve_geo_id` with in-memory cache
+- Real XLSX export: pure-stdlib OOXML writer (zip + XML, zero new
+  dependencies); inline-string cells are formula-injection immune by design
+
+### Fixed
+- `export_jobs(fmt="xlsx")` no longer returns `xlsx_not_enabled`; the README
+  promise "CSV/JSON/XLSX" is now true
+- `relative_age` on future-dated postings returned near-24h nonsense; clamped
+  to "0h"
+
 ## [0.3.5] - 2026-07-29
 ### Security
 - Stop writing structlog output to stdout — log lines were corrupting the

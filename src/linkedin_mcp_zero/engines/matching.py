@@ -217,7 +217,7 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
         elif fmt == "csv":
             _write_csv(path, jobs)
         elif fmt == "xlsx":
-            return {"error": "xlsx_not_enabled", "hint": "Use fmt='csv' or fmt='json' for now."}
+            _write_xlsx(path, jobs)
         else:
             return {"error": "unsupported_format", "fmt": fmt}
         return {"path": str(path), "fmt": fmt, "count": len(jobs)}
@@ -239,3 +239,62 @@ def _write_csv(path: Path, jobs: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         writer.writerows({key: _csv_safe(job.get(key, "")) for key in fields} for job in jobs)
+
+
+_XLSX_CONTENT_TYPES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>"""
+
+_XLSX_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>"""
+
+_XLSX_WORKBOOK = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="jobs" sheetId="1" r:id="rId1"/></sheets>
+</workbook>"""
+
+_XLSX_WORKBOOK_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>"""
+
+
+def _xlsx_cell(value: Any, row: int, col: int) -> str:
+    from xml.sax.saxutils import escape
+
+    ref = f"{chr(65 + col)}{row}"
+    # Inline strings are literal text in every spreadsheet app: a value like
+    # "=cmd(...)" cannot become a formula (those require an <f> element), so
+    # XLSX output is formula-injection safe by construction.
+    text = escape(str(value), {'"': "&quot;"})
+    return f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
+
+
+def _write_xlsx(path: Path, jobs: list[dict[str, Any]]) -> None:
+    """Write a minimal, dependency-free XLSX (OOXML is just zipped XML)."""
+    import zipfile
+
+    fields = ["id", "t", "co", "loc", "sal", "type", "url"]
+    rows_xml = []
+    header = "".join(_xlsx_cell(name, 1, col) for col, name in enumerate(fields))
+    rows_xml.append(f'<row r="1">{header}</row>')
+    for index, job in enumerate(jobs, start=2):
+        cells = "".join(_xlsx_cell(job.get(key, ""), index, col) for col, key in enumerate(fields))
+        rows_xml.append(f'<row r="{index}">{cells}</row>')
+    sheet = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f"<sheetData>{''.join(rows_xml)}</sheetData></worksheet>"
+    )
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", _XLSX_CONTENT_TYPES)
+        archive.writestr("_rels/.rels", _XLSX_RELS)
+        archive.writestr("xl/workbook.xml", _XLSX_WORKBOOK)
+        archive.writestr("xl/_rels/workbook.xml.rels", _XLSX_WORKBOOK_RELS)
+        archive.writestr("xl/worksheets/sheet1.xml", sheet)
