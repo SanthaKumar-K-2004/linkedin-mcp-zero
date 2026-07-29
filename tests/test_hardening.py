@@ -279,3 +279,30 @@ def test_metrics_store_prunes_old_rows(tmp_path: Path) -> None:
             tokens_estimated=1,
         )
     assert len(store.recent_calls(100)) == 100
+
+
+# --- settings / env parsing ------------------------------------------------------
+def test_cors_origins_accept_comma_separated_env(monkeypatch) -> None:
+    from linkedin_mcp_zero.config.settings import Settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://a.example, https://b.example")
+    settings = Settings()
+    assert settings.cors_allowed_origins == ["http://a.example", "https://b.example"]
+
+
+def test_cors_origins_accept_json_env(monkeypatch) -> None:
+    from linkedin_mcp_zero.config.settings import Settings
+
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["http://only.example"]')
+    settings = Settings()
+    assert settings.cors_allowed_origins == ["http://only.example"]
+
+
+def test_allowed_resume_dirs_comma_env(monkeypatch, tmp_path: Path) -> None:
+    from linkedin_mcp_zero.config.settings import Settings
+
+    first = tmp_path / "a"
+    second = tmp_path / "cv"
+    monkeypatch.setenv("LINKEDIN_MCP_ALLOWED_RESUME_DIRS", f"{first},{second}")
+    settings = Settings()
+    assert settings.allowed_resume_dirs == [str(first), str(second)]

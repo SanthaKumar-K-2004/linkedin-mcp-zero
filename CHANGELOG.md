@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.7] - 2026-07-29
+### Fixed
+- API-key middleware blocked `/health` and `/.well-known/*` behind auth —
+  health probes and RFC 9728 discovery are meaningless when authenticated;
+  both are now on an explicit public allowlist
+- `CORS_ALLOWED_ORIGINS=http://a,http://b` crashed startup (pydantic-settings
+  JSON-decodes list env vars before validators); list env vars now accept
+  JSON arrays or comma-separated strings via `NoDecode` + a lenient parser
+  (applies to `LINKEDIN_MCP_ALLOWED_RESUME_DIRS` too)
+
+### Added
+- `429` responses now carry a computed `Retry-After` header
+- Docker `HEALTHCHECK` against the (now public) `/health` endpoint
+- CI matrix gains Python 3.13; pre-commit pinned to ruff v0.9.6 / mypy v1.15.0
+- Regression tests: public-path bypass, introspection cache reuse, env parsing
+
 ## [0.3.6] - 2026-07-29
 ### Added
 - `search_jobs_advanced(geo=...)` — place names or numeric geoIds pinned via

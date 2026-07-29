@@ -157,6 +157,20 @@ Unbounded `tool_calls` table. **Fix:** pruned to newest
 - **Voyager/private API** stays a gated placeholder (account risk) — by design.
 - **Patchright fallback** remains opt-in — by design.
 
+### Shipped in v0.3.7 (post-audit follow-ups)
+
+- **Public health/discovery paths** — `/health` and `/.well-known/*` were
+  behind the API-key middleware: load-balancer probes returned 401 and the
+  RFC 9728 discovery document was unreachable by unauthenticated clients
+  (its entire purpose). Both are now on an explicit allowlist; Docker got a
+  matching `curl` HEALTHCHECK.
+- **`Retry-After` on 429** — computed from the sliding window's oldest entry.
+- **CORS env foot-gun** — `CORS_ALLOWED_ORIGINS=http://a,http://b` crashed
+  startup (pydantic-settings JSON-decodes list env vars pre-validation, found
+  via regression test); fixed with `NoDecode` + lenient JSON-or-CSV parsing,
+  also for `LINKEDIN_MCP_ALLOWED_RESUME_DIRS`.
+- CI tests Python 3.13; pre-commit tools unpinned from stale v0.3.0/v1.8.0.
+
 ### Shipped in v0.3.6 (previously deferred, now done)
 
 - **`geoId` passthrough** — `search_jobs_advanced(geo=...)` resolves place
