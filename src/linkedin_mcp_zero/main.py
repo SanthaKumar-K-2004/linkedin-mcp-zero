@@ -8,6 +8,7 @@ from rich.console import Console
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
+from linkedin_mcp_zero import __version__
 from linkedin_mcp_zero.config.autodetect import detect_runtime
 from linkedin_mcp_zero.config.install import (
     PackageExtra,
@@ -23,6 +24,7 @@ from linkedin_mcp_zero.utils.logging import configure_logging
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="linkedin-mcp-zero")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default=None)
     parser.add_argument("--host", default=None)
     parser.add_argument("--port", type=int, default=None)
@@ -59,7 +61,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--with-extra",
         action="append",
         choices=["browser", "multi", "pdf"],
-        default=[],
+        default=None,
         help="Include an optional package extra in installed/printed MCP config",
     )
     parser.add_argument(
@@ -89,13 +91,15 @@ def cli() -> None:
 
     configure_logging(settings.log_level)
     if args.doctor:
-        runtime = detect_runtime(settings.data_dir)
+        runtime = detect_runtime(settings.data_dir, probe=True)
         if args.json_output:
             Console().print_json(json.dumps(runtime, default=str))
         else:
             _print_doctor(runtime)
         return
-    extras: list[PackageExtra] = args.with_extra
+    # NOTE: argparse's action="append" mutates its default list in place, so a
+    # default of [] would leak extras across parse_args() calls in one process.
+    extras: list[PackageExtra] = args.with_extra or []
     if args.print_config:
         Console().print_json(
             json.dumps(
@@ -142,7 +146,7 @@ def cli() -> None:
         api_key = settings.api_key
         if not api_key:
             api_key = secrets.token_hex(16)
-            console = Console()
+            console = Console(stderr=True)
             console.print(
                 "[bold yellow]WARNING:[/bold yellow] No API key configured for HTTP transport. "
                 f"Generated secure API key: [bold green]{api_key}[/bold green]"
@@ -204,6 +208,10 @@ def _print_doctor(runtime: dict[str, object]) -> None:
     console.print(f"Data dir: {runtime.get('data_dir')}")
     console.print(f"Chrome: {runtime.get('chrome') or 'not found'}")
     console.print(f"CDP URL: {runtime.get('cdp_url')}")
+    guest_api = runtime.get("guest_api")
+    if guest_api is not None:
+        style = "green" if guest_api == "ok" else "red"
+        console.print(f"LinkedIn guest API: [{style}]{guest_api}[/{style}]")
     console.print(f"Recommended mode: {runtime.get('mode')}")
     if isinstance(optional, dict):
         console.print("Optional packages:")

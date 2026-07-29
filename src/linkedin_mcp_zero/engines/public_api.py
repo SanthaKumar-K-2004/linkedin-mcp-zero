@@ -15,7 +15,8 @@ logger = structlog.get_logger()
 
 class PublicAPIEngine:
     def __init__(self, settings: Settings) -> None:
-        self.client = GuestAPIClient(timeout=settings.timeout_seconds)
+        proxy = settings.https_proxy or settings.http_proxy
+        self.client = GuestAPIClient(timeout=settings.timeout_seconds, proxy=proxy)
         self.cache: TTLCache[Any] = TTLCache(
             ttl_seconds=settings.cache_ttl_seconds,
             max_entries=CACHE_MAX_ENTRIES,
@@ -60,26 +61,67 @@ class PublicAPIEngine:
         type: str = "",
         exp: int | None = None,
         remote: bool | None = None,
+        work: str = "",
+        easy_apply: bool = False,
+        geo: str = "",
+        distance: int | None = None,
         age: str = "",
         sort: str = "relevance",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        key = ("search_jobs_advanced", kw, loc, co, type, exp, remote, age, sort, limit)
+        key = (
+            "search_jobs_advanced",
+            kw,
+            loc,
+            co,
+            type,
+            exp,
+            remote,
+            work,
+            easy_apply,
+            geo,
+            distance,
+            age,
+            sort,
+            limit,
+        )
         cached = self.cache.get(key)
         if cached is not None:
             return cast(list[dict[str, object]], cached)
+        # f_C needs LinkedIn's numeric company id; a human name must be
+        # resolved first or the filter is silently ignored upstream.
+        company_id = ""
+        unfiltered_company = co.strip()
+        if unfiltered_company:
+            await self.bucket.acquire()
+            company_id = await self.client.resolve_company_id(unfiltered_company) or ""
+        # geoId pins results to an exact place; accepts either the numeric id
+        # straight from LinkedIn or a place name resolved via typeahead.
+        geo_id = ""
+        unfiltered_geo = geo.strip()
+        if unfiltered_geo:
+            await self.bucket.acquire()
+            geo_id = await self.client.resolve_geo_id(unfiltered_geo) or ""
         await self.bucket.acquire()
         result = await self.client.search_jobs(
             kw=kw,
             loc=loc,
-            company=co,
+            company_id=company_id,
+            geo_id=geo_id,
+            distance=distance,
             job_type=type,
             exp=exp,
             remote=remote,
+            work_model=work,
+            easy_apply=easy_apply,
             age=age,
             sort=sort,
             limit=limit,
         )
+        if unfiltered_company and not company_id:
+            # Resolution unavailable: fall back to an honest client-side
+            # company-name filter so results stay truthful.
+            result = [job for job in result if unfiltered_company.lower() in str(job.get("co", "")).lower()]
         self.cache.set(key, result)
         return result
 
@@ -95,11 +137,17 @@ class PublicAPIEngine:
 
     async def get_job_salary(self, id: str) -> dict[str, object]:
         details = await self.get_job_details(id)
-        return {
+        sal = details.get("sal", "")
+        result: dict[str, object] = {
             "id": details.get("id", id),
-            "sal": details.get("sal", ""),
-            "source": "schema_or_public_page" if details.get("sal") else "not_found",
+            "sal": sal,
+            "source": ("schema_or_public_page" if sal else "not_found"),
         }
+        # Preserve the extraction provenance (structured schema vs free-text
+        # description fallback) so callers can weight confidence accordingly.
+        if sal and details.get("sal_src"):
+            result["sal_src"] = details["sal_src"]
+        return result
 
     async def get_company_jobs(
         self,
@@ -107,6 +155,17 @@ class PublicAPIEngine:
         loc: str = "",
         limit: int = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
+        await self.bucket.acquire()
+        company_id = await self.client.resolve_company_id(co)
+        if company_id:
+            key = ("company_jobs", company_id, loc, limit)
+            cached = self.cache.get(key)
+            if cached is not None:
+                return cast(list[dict[str, object]], cached)
+            await self.bucket.acquire()
+            result = await self.client.search_jobs(kw="", loc=loc, company_id=company_id, limit=limit)
+            self.cache.set(key, result)
+            return result
         jobs = await self.search_jobs(kw=co, loc=loc, limit=limit)
         filtered = [job for job in jobs if co.lower() in str(job.get("co", "")).lower()]
         if not filtered and jobs:
@@ -114,6 +173,19 @@ class PublicAPIEngine:
         return filtered
 
     async def search_companies(self, kw: str, limit: int = 10) -> list[dict[str, object]]:
+        # The typeahead API returns canonical companies with their numeric
+        # ids (usable directly in search_jobs_advanced/company filters).
+        await self.bucket.acquire()
+        hits = await self.client.typeahead(kw, "COMPANY")
+        if hits:
+            return [
+                {
+                    "name": hit["name"],
+                    "company_id": hit["id"],
+                    "source": "linkedin_typeahead",
+                }
+                for hit in hits[:limit]
+            ]
         jobs = await self.search_jobs(kw=kw, limit=min(max(limit * 2, 5), 50))
         seen: dict[str, dict[str, Any]] = {}
         for job in jobs:
@@ -131,17 +203,22 @@ class PublicAPIEngine:
         return list(seen.values())[:limit]
 
     async def get_company_profile(self, co: str) -> dict[str, object]:
+        await self.bucket.acquire()
+        company_id = await self.client.resolve_company_id(co)
         jobs = await self.get_company_jobs(co=co, limit=10)
         locations = sorted({str(job.get("loc", "")) for job in jobs if job.get("loc")})
         roles = [job.get("t", "") for job in jobs[:5]]
-        return {
-            "name": co,
-            "source": "public_jobs_inference",
-            "open_jobs_seen": len(jobs),
-            "loc": locations[:5],
-            "sample_roles": roles,
-            "note": "Public profile enrichment is inferred from public job listings only.",
-        }
+        return compact_company_profile(
+            {
+                "name": co,
+                "company_id": company_id or "",
+                "source": "public_jobs_inference",
+                "open_jobs_seen": len(jobs),
+                "loc": locations[:5],
+                "sample_roles": roles,
+                "note": "Public profile enrichment is inferred from public job listings only.",
+            }
+        )
 
     async def get_job_trends(self, kw: str, loc: str = "") -> dict[str, object]:
         jobs = await self.search_jobs(kw=kw, loc=loc, limit=50)
@@ -192,6 +269,10 @@ class PublicAPIEngine:
             "top_roles": _top_counts(role_counts),
             "in_demand_skills": [row["name"] for row in _top_counts(skill_counts)],
         }
+
+
+def compact_company_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in profile.items() if v not in (None, "", [], {})}
 
 
 def _top_counts(values: dict[str, int], limit: int = 5) -> list[dict[str, object]]:

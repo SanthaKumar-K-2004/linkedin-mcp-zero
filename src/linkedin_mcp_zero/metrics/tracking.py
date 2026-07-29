@@ -154,7 +154,25 @@ def _record_call(
     )
     if settings.exact_token_count and settings.anthropic_api_key and content:
         with suppress(RuntimeError):
-            asyncio.get_running_loop().create_task(_count_exact(settings, store, row_id, content))
+            _spawn_exact_count(settings, store, row_id, content)
+
+
+# Strong references for fire-and-forget tasks. asyncio only holds weak
+# references to scheduled tasks, so a bare ``create_task(...)`` can be
+# garbage-collected (and silently cancelled) mid-request.
+_background_tasks: set[asyncio.Task[Any]] = set()
+
+
+def _spawn_exact_count(
+    settings: Settings,
+    store: MetricsStore,
+    row_id: int,
+    content: str,
+) -> asyncio.Task[Any]:
+    task = asyncio.get_running_loop().create_task(_count_exact(settings, store, row_id, content))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
 
 
 async def _count_exact(

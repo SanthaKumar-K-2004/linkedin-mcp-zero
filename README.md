@@ -121,6 +121,11 @@ These work without LinkedIn login or browser setup.
 | 29 | `get_resume_insights_advanced` | Advanced AI-powered resume insights | Local |
 | 30 | `deep_industry_analysis` | Full industry analysis with progress updates | Local/public |
 
+> **Alert semantics:** `check_saved_alerts` with no `ids` honors each alert's
+> `daily`/`weekly` frequency — an alert already checked inside its window is
+> returned as `skipped: "not_due"` (with `next_due_in_hours`) instead of
+> re-scraped. Pass explicit `ids` to force a check regardless.
+
 ### Browser Tools: +11
 
 Enable with `--with-extra browser` or `--enable-browser`. These are read-only,
@@ -277,8 +282,30 @@ uv run --extra dev pytest
 uv build
 ```
 
-Publish only the new version files:
+Publish only the new version files (match the version in `pyproject.toml`):
 
 ```bash
-UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.2*
+UV_PUBLISH_TOKEN=... uv publish dist/linkedin_mcp_zero-0.3.12*
 ```
+
+## Search Filters Cheat Sheet
+
+`search_jobs` / `search_jobs_advanced` support LinkedIn's guest filters:
+
+| Param | Values | LinkedIn filter |
+|---|---|---|
+| `type` | `fulltime`, `parttime`, `contract`, `internship` | `f_JT` |
+| `exp` | 1=internship … 6=executive | `f_E` |
+| `work` | `onsite`, `remote`, `hybrid` (advanced only) | `f_WT` |
+| `remote` | `true` (back-compat alias for remote) | `f_WT=2` |
+| `easy_apply` | `true` (advanced only) | `f_AL` |
+| `age` | `24h`, `7d`, `30d` or raw `r86400`/`r604800`/`r2592000` | `f_TPR` |
+| `sort` | `relevance`, `date` (advanced only) | `sortBy` |
+| `co` | company name or `company_id` from `search_companies` | resolved → `f_C` |
+| `geo` | place name or numeric geoId (advanced only) | resolved → `geoId` |
+| `distance` | radius in miles around loc/geo, max 100 (advanced only) | `distance` |
+
+> **Job detail extras:** `get_job_details` also mines the page's structured
+> criteria block — `cr` carries `sen` (seniority level), `func` (job
+> function), and `ind` (industries), and when the JSON-LD schema omits the
+> employment type it is recovered from the same block into `type`.

@@ -119,7 +119,9 @@ async def test_concurrent_compare_and_export(tmp_path: Path) -> None:
 
     exp = await engine.export_jobs(["123"], fmt="json")
     assert exp["count"] == 1
-    assert "jobs_export.json" in exp["path"]
+    # export files are timestamped per call to prevent silent overwrites
+    assert exp["path"].endswith(".json")
+    assert "jobs_export_" in exp["path"]
 
 
 @pytest.mark.anyio

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import secrets
 import time
 from collections import defaultdict
 from typing import Any
@@ -7,6 +9,12 @@ from typing import Any
 import structlog
 
 logger = structlog.get_logger()
+
+# Paths that must stay reachable without an API key: container/load-balancer
+# health probes and RFC 9728 protected-resource discovery are meaningless
+# behind authentication.
+PUBLIC_PATHS = frozenset({"/health"})
+PUBLIC_PATH_PREFIXES = ("/.well-known/",)
 
 
 class APIKeyAndRateLimitMiddleware:
@@ -26,6 +34,12 @@ class APIKeyAndRateLimitMiddleware:
                 await self.app(scope, receive, send)
                 return
 
+            # Public health/discovery endpoints bypass auth and rate limiting.
+            path = str(scope.get("path", ""))
+            if path in PUBLIC_PATHS or path.startswith(PUBLIC_PATH_PREFIXES):
+                await self.app(scope, receive, send)
+                return
+
             # 1. API Key Auth
             headers = dict(scope.get("headers", []))
             client_key = headers.get(b"x-api-key", b"").decode("utf-8")
@@ -34,7 +48,9 @@ class APIKeyAndRateLimitMiddleware:
                 if auth_val.startswith("Bearer "):
                     client_key = auth_val[7:]
 
-            if not client_key or client_key != self.api_key:
+            # Constant-time comparison: a plain != leaks key length/content
+            # through response timing.
+            if not client_key or not secrets.compare_digest(client_key, self.api_key):
                 logger.warning(
                     "Unauthorized request blocked",
                     path=scope.get("path"),
@@ -75,11 +91,18 @@ class APIKeyAndRateLimitMiddleware:
                     path=scope.get("path"),
                     method=method,
                 )
+                # Seconds until the oldest request in this client's sliding
+                # window expires — clients deserve a real Retry-After hint.
+                oldest = self.requests[client_ip][0]
+                retry_after = max(1, math.ceil(60 - (now - oldest)))
                 await send(
                     {
                         "type": "http.response.start",
                         "status": 429,
-                        "headers": [(b"content-type", b"application/json")],
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"retry-after", str(retry_after).encode()),
+                        ],
                     }
                 )
                 await send(

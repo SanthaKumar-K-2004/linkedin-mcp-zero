@@ -137,9 +137,26 @@ async def test_export_jobs_csv(mock_dependencies, tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_export_jobs_xlsx_unsupported(mock_dependencies) -> None:
+async def test_export_jobs_xlsx_supported(mock_dependencies) -> None:
+    import zipfile
+
     storage, public = mock_dependencies
+    public.get_job_details = AsyncMock(
+        return_value={"id": "1", "t": "Python Dev", "co": "Google", "loc": "NY", "url": "url1", "type": "FT"}
+    )
     engine = MatchingEngine(storage, public)
     res = await engine.export_jobs(["1"], fmt="xlsx")
-    assert "error" in res
-    assert res["error"] == "xlsx_not_enabled"
+    assert res["fmt"] == "xlsx"
+    assert res["count"] == 1
+    path = Path(res["path"])
+    assert path.exists()
+    with zipfile.ZipFile(path) as archive:
+        assert "xl/worksheets/sheet1.xml" in archive.namelist()
+
+
+@pytest.mark.asyncio
+async def test_export_jobs_rejects_too_many_ids(mock_dependencies) -> None:
+    storage, public = mock_dependencies
+    engine = MatchingEngine(storage, public)
+    res = await engine.export_jobs([str(i) for i in range(101)], fmt="csv")
+    assert res.get("error") == "too_many_ids"

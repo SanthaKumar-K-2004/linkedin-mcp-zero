@@ -11,6 +11,7 @@ from platformdirs import user_data_dir
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.storage.db import Storage
 from linkedin_mcp_zero.utils.compress import clean_text, compact_dict, truncate
+from linkedin_mcp_zero.utils.skills import match_skills
 
 logger = structlog.get_logger()
 
@@ -23,26 +24,6 @@ except ImportError:
 
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
-SKILLS = [
-    "Python",
-    "JavaScript",
-    "TypeScript",
-    "React",
-    "Node",
-    "SQL",
-    "AWS",
-    "Azure",
-    "GCP",
-    "Docker",
-    "Kubernetes",
-    "Django",
-    "FastAPI",
-    "Machine Learning",
-    "AI",
-    "LLM",
-    "MCP",
-    "Playwright",
-]
 
 
 class ResumeEngine:
@@ -75,7 +56,7 @@ class ResumeEngine:
         text = extract_resume_text(path, allowed_dirs=allowed)
         email = _first_match(EMAIL_RE, text)
         phone = _first_match(PHONE_RE, text)
-        skills = [skill for skill in SKILLS if skill.lower() in text.lower()]
+        skills = match_skills(text)
         lines = [clean_text(line) for line in text.splitlines() if clean_text(line)]
         name = lines[0] if lines else ""
         data = compact_dict(
@@ -191,8 +172,12 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
                 logger.warning("Docling pdf conversion failed, falling back to pymupdf", error=str(exc))
         try:
             import fitz
-        except ImportError:
-            return "PDF support requires optional dependency: uv sync --extra pdf or pip install pymupdf"
+        except ImportError as exc:
+            # Raise instead of silently returning the message: callers used to
+            # store this sentence as the parsed resume content.
+            raise ValueError(
+                "PDF support requires the optional dependency: uv sync --extra pdf (or pip install pymupdf)."
+            ) from exc
         with fitz.open(str(file)) as doc:
             return "\n".join(page.get_text() for page in doc)
     raise ValueError("Unsupported resume format. Use .txt, .md, .docx, or install pdf extra.")

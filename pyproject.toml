@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "linkedin-mcp-zero"
-version = "0.3.4"
+version = "0.3.12"
 description = "Token-optimized, public-first LinkedIn jobs MCP server."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -58,6 +58,9 @@ packages = ["src/linkedin_mcp_zero"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "live: tests that hit the real LinkedIn guest API (enable with LINKEDIN_MCP_LIVE=1)",
+]
 
 [tool.ruff]
 line-length = 120

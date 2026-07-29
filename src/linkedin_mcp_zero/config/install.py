@@ -118,15 +118,20 @@ def verify_client_config(
         list_ok = False
         list_detail = "not checked"
         if claude:
-            completed = subprocess.run(
-                [claude, "mcp", "list"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            output = (completed.stdout or completed.stderr or "").strip()
-            list_ok = completed.returncode == 0 and SERVER_NAME in output
-            list_detail = output or f"exit {completed.returncode}"
+            completed: subprocess.CompletedProcess[str] | None = None
+            try:
+                completed = subprocess.run(
+                    [claude, "mcp", "list"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                output = (completed.stdout or completed.stderr or "").strip()
+            except subprocess.TimeoutExpired:
+                output = "claude mcp list timed out after 30s"
+            list_ok = completed is not None and completed.returncode == 0 and SERVER_NAME in output
+            list_detail = output or (f"exit {completed.returncode}" if completed is not None else "no output")
         claude_checks = [
             {"name": "claude_cli_found", "ok": bool(claude), "detail": claude or "not found"},
             {
@@ -290,7 +295,18 @@ def _install_claude_code(
             command,
             "Claude Code CLI not found. Run the returned command after installing Claude Code.",
         )
-    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    try:
+        completed = subprocess.run(command, check=False, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return InstallResult(
+            "claude-code",
+            None,
+            False,
+            None,
+            SERVER_NAME,
+            command,
+            "Claude Code install timed out after 30s.",
+        )
     if completed.returncode != 0:
         return InstallResult(
             "claude-code",

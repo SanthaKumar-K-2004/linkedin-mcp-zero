@@ -115,9 +115,63 @@ async def test_middleware_rate_limit_exceeded() -> None:
         {
             "type": "http.response.start",
             "status": 429,
-            "headers": [(b"content-type", b"application/json")],
+            "headers": [(b"content-type", b"application/json"), (b"retry-after", b"60")],
         }
     )
+
+
+@pytest.mark.asyncio
+async def test_middleware_public_paths_bypass_auth() -> None:
+    """Health probes and RFC 9728 discovery must work without an API key."""
+    for path in ("/health", "/.well-known/oauth-protected-resource"):
+        mock_app = AsyncMock()
+        middleware = APIKeyAndRateLimitMiddleware(mock_app, api_key="secret-key")
+        scope = {"type": "http", "method": "GET", "headers": [], "path": path}
+        receive = AsyncMock()
+        send = AsyncMock()
+        await middleware(scope, receive, send)
+        mock_app.assert_called_once_with(scope, receive, send)
+
+
+@pytest.mark.asyncio
+async def test_oauth_introspection_cached_per_token() -> None:
+    """A second request with the same token must not hit the auth server."""
+    from linkedin_mcp_zero.utils import oauth as oauth_module
+
+    oauth_module._introspect_cache.clear()
+    mock_app = AsyncMock()
+    mock_settings = MagicMock()
+    mock_settings.oauth_server_url = "http://mock-auth"
+    mock_settings.oauth_client_id = "client"
+    mock_settings.oauth_client_secret = "secret"
+
+    middleware = OAuthMiddleware(mock_app, oauth_config=None, settings=mock_settings)
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "headers": [(b"authorization", b"Bearer cache-me-token")],
+        "path": "/test",
+    }
+    receive = AsyncMock()
+    send = MagicMock()
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"active": True}
+
+    with patch("linkedin_mcp_zero.utils.oauth.httpx.AsyncClient") as MockClient:
+        mock_instance = AsyncMock()
+        mock_instance.post = AsyncMock(return_value=mock_resp)
+        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+        mock_instance.__aexit__ = AsyncMock(return_value=False)
+        MockClient.return_value = mock_instance
+
+        await middleware(scope, receive, send)
+        await middleware(scope, receive, send)
+        # only the first call introspected; the second came from the TTL cache
+        mock_instance.post.assert_called_once()
+        assert mock_app.call_count == 2
+    oauth_module._introspect_cache.clear()
 
 
 @pytest.mark.asyncio
