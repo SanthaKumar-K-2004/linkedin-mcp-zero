@@ -164,28 +164,45 @@ class PublicAPIEngine:
         }
 
     async def get_industry_insights(self, ind: str) -> dict[str, object]:
+        import asyncio
+
         jobs = await self.search_jobs(kw=ind, limit=50)
         role_counts: dict[str, int] = {}
         skill_counts: dict[str, int] = {}
-        for job in jobs[:20]:
+        sample = jobs[:20]
+
+        for job in sample:
             title = str(job.get("t", ""))
             if title:
                 role_counts[title] = role_counts.get(title, 0) + 1
-            if job.get("id"):
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def _fetch_details(job_id: str) -> dict[str, object]:
+            async with semaphore:
                 try:
-                    details = await self.get_job_details(str(job["id"]))
+                    return await self.get_job_details(job_id)
                 except Exception as e:
                     logger.warning(
                         "Failed to fetch job details for industry insights",
-                        job_id=job["id"],
+                        job_id=job_id,
                         error=str(e),
                     )
-                    details = {}
+                    return {}
+
+        details_results = await asyncio.gather(
+            *(_fetch_details(str(job["id"])) for job in sample if job.get("id")),
+            return_exceptions=True,
+        )
+
+        for details in details_results:
+            if isinstance(details, dict):
                 skills = details.get("skills")
                 if isinstance(skills, list):
                     for skill in skills:
                         text = str(skill)
                         skill_counts[text] = skill_counts.get(text, 0) + 1
+
         return {
             "industry": ind,
             "sample": len(jobs),

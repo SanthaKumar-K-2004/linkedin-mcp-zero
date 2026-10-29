@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-import random
+import asyncio
 import re
+import secrets
 from datetime import datetime
 from typing import Any
 
 import structlog
 from curl_cffi.requests import AsyncSession
-from selectolax.parser import HTMLParser
+
+try:
+    from selectolax.parser import HTMLParser
+except (ImportError, AttributeError):
+    from selectolax.lexbor import LexborHTMLParser as HTMLParser  # type: ignore
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
 from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
@@ -41,10 +46,11 @@ class GuestAPIClient:
         self.timeout = timeout
         self._session: AsyncSession[Any] | None = None
         self.circuit_breaker = CircuitBreaker()
+        self._in_flight: dict[str, asyncio.Future[dict[str, object]]] = {}
 
     async def _get_session(self) -> AsyncSession[Any]:
         if self._session is None:
-            ua = random.choice(USER_AGENTS)
+            ua = secrets.choice(USER_AGENTS)
             self._session = AsyncSession(
                 impersonate="chrome124",
                 headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
@@ -109,7 +115,7 @@ class GuestAPIClient:
                             params=params,
                         )
                         if response.status_code >= 400:
-                            new_ua = random.choice(USER_AGENTS)
+                            new_ua = secrets.choice(USER_AGENTS)
                             session.headers["User-Agent"] = new_ua
                             self.circuit_breaker.record_failure()
                             raise UpstreamError(f"LinkedIn guest search failed: HTTP {response.status_code}")
@@ -127,26 +133,41 @@ class GuestAPIClient:
     async def get_job_details(self, job_id_or_url: str) -> dict[str, object]:
         self.circuit_breaker.check()
         job_id = extract_job_id(job_id_or_url)
-        session = await self._get_session()
+        if job_id in self._in_flight:
+            return await self._in_flight[job_id]
 
-        async def _make_request() -> Any:
-            async for attempt in AsyncRetrying(
-                stop=stop_after_attempt(3),
-                wait=wait_exponential(multiplier=1, min=2, max=10),
-                reraise=True,
-            ):
-                with attempt:
-                    response = await session.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
-                    if response.status_code >= 400:
-                        new_ua = random.choice(USER_AGENTS)
-                        session.headers["User-Agent"] = new_ua
-                        self.circuit_breaker.record_failure()
-                        raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
-                    self.circuit_breaker.record_success()
-                    return response
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict[str, object]] = loop.create_future()
+        self._in_flight[job_id] = future
 
-        response = await _make_request()
-        return parse_job_detail(response.text, job_id)
+        try:
+            session = await self._get_session()
+
+            async def _make_request() -> Any:
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(3),
+                    wait=wait_exponential(multiplier=1, min=2, max=10),
+                    reraise=True,
+                ):
+                    with attempt:
+                        response = await session.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
+                        if response.status_code >= 400:
+                            new_ua = secrets.choice(USER_AGENTS)
+                            session.headers["User-Agent"] = new_ua
+                            self.circuit_breaker.record_failure()
+                            raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
+                        self.circuit_breaker.record_success()
+                        return response
+
+            response = await _make_request()
+            result = parse_job_detail(response.text, job_id)
+            future.set_result(result)
+            return result
+        except Exception as exc:
+            future.set_exception(exc)
+            raise
+        finally:
+            self._in_flight.pop(job_id, None)
 
 
 def extract_job_id(value: str) -> str:
@@ -307,23 +328,6 @@ def _job_type_code(value: str) -> str:
 
 
 def _extract_skills(text: str) -> list[str]:
-    known = [
-        "Python",
-        "JavaScript",
-        "TypeScript",
-        "React",
-        "Node",
-        "SQL",
-        "AWS",
-        "Azure",
-        "GCP",
-        "Docker",
-        "Kubernetes",
-        "Django",
-        "FastAPI",
-        "Machine Learning",
-        "AI",
-        "LLM",
-    ]
-    lower = text.lower()
-    return [skill for skill in known if skill.lower() in lower]
+    from linkedin_mcp_zero.config.skills import extract_skills_from_text
+
+    return extract_skills_from_text(text)

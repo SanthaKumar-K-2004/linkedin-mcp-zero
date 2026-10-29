@@ -115,7 +115,10 @@ async def test_middleware_rate_limit_exceeded() -> None:
         {
             "type": "http.response.start",
             "status": 429,
-            "headers": [(b"content-type", b"application/json")],
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"retry-after", b"60"),
+            ],
         }
     )
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import os
 from collections.abc import Callable
+from contextlib import suppress
 from functools import wraps
 from typing import Any, TypeVar, cast
 
@@ -25,12 +26,10 @@ _tracer = None
 def get_tracer() -> Any:
     global _tracer
     if OPENTELEMETRY_AVAILABLE and _tracer is None:
-        try:
+        with suppress(Exception):
             from opentelemetry import trace
 
             _tracer = trace.get_tracer("linkedin-mcp-zero")
-        except Exception:
-            pass
     return _tracer
 
 

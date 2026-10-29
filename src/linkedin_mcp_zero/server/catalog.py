@@ -329,6 +329,22 @@ TOOLS: list[dict[str, object]] = [
         "tokens": 800,
         "desc": "Advanced AI-powered resume insights",
     },
+    {
+        "name": "analyze_job_viability",
+        "short": "ajv",
+        "engine": "E1",
+        "risk": "public_no_login_read_only",
+        "tokens": 350,
+        "desc": "Assess hiring viability, applicant saturation, and ghost-job probability",
+    },
+    {
+        "name": "expand_skill_cluster",
+        "short": "esc",
+        "engine": "-",
+        "risk": "local_zero_account_risk",
+        "tokens": 200,
+        "desc": "Explore technology ecosystems and related skills via in-process knowledge graph",
+    },
 ]
 
 

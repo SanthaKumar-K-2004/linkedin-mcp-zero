@@ -65,7 +65,7 @@ class APIKeyAndRateLimitMiddleware:
             if len(self.requests) > 1000:
                 self.requests = defaultdict(
                     list,
-                    {ip: times for ip, times in self.requests.items() if times},
+                    {ip: valid for ip, times in self.requests.items() if (valid := [t for t in times if now - t < 60])},
                 )
 
             if len(self.requests[client_ip]) >= self.rate_limit:
@@ -79,7 +79,10 @@ class APIKeyAndRateLimitMiddleware:
                     {
                         "type": "http.response.start",
                         "status": 429,
-                        "headers": [(b"content-type", b"application/json")],
+                        "headers": [
+                            (b"content-type", b"application/json"),
+                            (b"retry-after", b"60"),
+                        ],
                     }
                 )
                 await send(

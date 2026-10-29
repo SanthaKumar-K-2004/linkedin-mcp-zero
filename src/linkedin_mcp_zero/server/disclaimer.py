@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
 
 from rich.console import Console
@@ -26,8 +27,6 @@ def show_disclaimer_if_needed(data_dir: str | Path | None = None) -> None:
     disclaimer_file = data_path / "disclaimer_accepted.txt"
     if not disclaimer_file.exists():
         Console(stderr=True).print(DISCLAIMER_TEXT)
-        try:
+        with suppress(Exception):
             data_path.mkdir(parents=True, exist_ok=True)
             disclaimer_file.write_text("Accepted", encoding="utf-8")
-        except Exception:
-            pass

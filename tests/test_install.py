@@ -69,7 +69,9 @@ def test_install_client_config_backup_on_change(tmp_path) -> None:
     assert Path(res.backup).exists()
 
 
-def test_verify_client_config_ok(tmp_path) -> None:
+@patch("linkedin_mcp_zero.config.install.subprocess.run")
+def test_verify_client_config_ok(mock_run: MagicMock, tmp_path) -> None:
+    mock_run.return_value = MagicMock(returncode=0, stdout='{"status": "ok"}', stderr="")
     target = tmp_path / "mcp_config.json"
     install_client_config(
         client="claude-desktop",

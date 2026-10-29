@@ -4,7 +4,7 @@ import json
 import os
 import platform
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -118,7 +118,7 @@ def verify_client_config(
         list_ok = False
         list_detail = "not checked"
         if claude:
-            completed = subprocess.run(
+            completed = subprocess.run(  # nosec B603
                 [claude, "mcp", "list"],
                 check=False,
                 capture_output=True,
@@ -193,7 +193,7 @@ def _check_server_doctor(command: str, args: object) -> dict[str, object]:
         return {"name": "server_doctor_runs", "ok": False, "detail": "missing args"}
     doctor_args = [str(part) for part in args] + ["--doctor", "--json"]
     try:
-        completed = subprocess.run(
+        completed = subprocess.run(  # nosec B603
             [command, *doctor_args],
             check=False,
             capture_output=True,
@@ -290,7 +290,7 @@ def _install_claude_code(
             command,
             "Claude Code CLI not found. Run the returned command after installing Claude Code.",
         )
-    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)  # nosec B603
     if completed.returncode != 0:
         return InstallResult(
             "claude-code",

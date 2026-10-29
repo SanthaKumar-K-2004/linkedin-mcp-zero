@@ -219,6 +219,16 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         """Export public job details to a local file."""
         return await matching.export_jobs(ids, fmt)
 
+    @async_tool("public_no_login")
+    async def analyze_job_viability(job_id_or_url: str) -> dict[str, object]:
+        """Assess hiring viability, applicant saturation, and ghost-job probability."""
+        return await matching.analyze_job_viability(job_id_or_url)
+
+    @sync_tool("local")
+    def expand_skill_cluster(skill: str) -> dict[str, object]:
+        """Explore technology ecosystems and related skills via in-process knowledge graph."""
+        return storage.get_skill_cluster(skill)
+
     @sync_tool("local", annotations=WRITE_ANNOTATIONS)
     def save_job_alert(
         name: str,
@@ -707,9 +717,18 @@ Provide:
     async def health(request: Request) -> JSONResponse:
         """Health check endpoint for streamable-http deployment."""
         status_info = await browser.status()
+        db_healthy = True
+        try:
+            with storage._connect() as conn:
+                conn.execute("SELECT 1").fetchone()
+        except Exception:
+            db_healthy = False
+
+        status = "ok" if db_healthy else "degraded"
         return JSONResponse(
             {
-                "status": "ok",
+                "status": status,
+                "database": "connected" if db_healthy else "error",
                 "engines": status_info,
             }
         )

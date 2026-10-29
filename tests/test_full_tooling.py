@@ -25,11 +25,12 @@ from linkedin_mcp_zero.server.middleware import APIKeyAndRateLimitMiddleware
 from linkedin_mcp_zero.storage.db import Storage
 
 
-def test_catalog_has_41_tools() -> None:
-    assert len(TOOLS) == 41
+def test_catalog_tool_count() -> None:
+    assert len(TOOLS) == 43
     assert tool_help("sj")["name"] == "search_jobs"
     assert tool_help("gus")["name"] == "get_usage_stats"
-    assert tool_help()["count"] == 41
+    assert tool_help("ajv")["name"] == "analyze_job_viability"
+    assert tool_help()["count"] == 43
 
 
 def test_storage_alert_roundtrip(tmp_path: Path) -> None:
@@ -181,7 +182,7 @@ async def test_browser_tools_are_hidden_by_default(tmp_path: Path) -> None:
     assert "get_my_profile" not in names
     assert "get_profile_voyager" not in names
     assert "get_usage_stats" in names
-    assert len(tools) == 30
+    assert len(tools) == 32
 
 
 @pytest.mark.asyncio

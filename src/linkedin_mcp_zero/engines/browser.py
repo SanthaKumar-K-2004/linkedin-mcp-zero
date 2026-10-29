@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-import random
+import secrets
 import time
 from contextlib import suppress
 from datetime import datetime
@@ -137,7 +137,15 @@ class BrowserEngine:
         ready = await self._ensure_ready()
         if not ready["available"]:
             return ready
-        url = id if id.startswith("http") else f"https://www.linkedin.com/messaging/thread/{id}/"
+        if id.startswith("http"):
+            from urllib.parse import urlparse
+
+            parsed = urlparse(id)
+            if parsed.hostname not in ("www.linkedin.com", "linkedin.com"):
+                return {"error": "invalid_url", "detail": "URL domain must be linkedin.com"}
+            url = id
+        else:
+            url = f"https://www.linkedin.com/messaging/thread/{id}/"
         page = await self._page(url, "messaging_read")
         messages = await _extract_text_blocks(
             page,
@@ -391,7 +399,7 @@ class BrowserEngine:
                 f"Daily browser read cap reached for {action_type} ({cap}/day). "
                 "This protects your LinkedIn account from high-volume automation."
             )
-        await asyncio.sleep(random.uniform(1.5, 4.0))
+        await asyncio.sleep(secrets.SystemRandom().uniform(1.5, 4.0))
         self._metrics.increment_browser_cap(action_type, day)
 
     def _playwright_available(self) -> bool:

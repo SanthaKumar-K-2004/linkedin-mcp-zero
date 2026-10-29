@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from collections import OrderedDict
 from collections.abc import Hashable
@@ -20,22 +21,26 @@ class TTLCache(Generic[T]):
         self.ttl_seconds = ttl_seconds
         self.max_entries = max_entries
         self._items: OrderedDict[Hashable, CacheEntry[T]] = OrderedDict()
+        self._lock = threading.Lock()
 
     def get(self, key: Hashable) -> T | None:
-        entry = self._items.get(key)
-        if entry is None:
-            return None
-        if entry.expires_at < time.monotonic():
-            self._items.pop(key, None)
-            return None
-        self._items.move_to_end(key)
-        return entry.value
+        with self._lock:
+            entry = self._items.get(key)
+            if entry is None:
+                return None
+            if entry.expires_at < time.monotonic():
+                self._items.pop(key, None)
+                return None
+            self._items.move_to_end(key)
+            return entry.value
 
     def set(self, key: Hashable, value: T) -> None:
-        self._items[key] = CacheEntry(value=value, expires_at=time.monotonic() + self.ttl_seconds)
-        self._items.move_to_end(key)
-        while len(self._items) > self.max_entries:
-            self._items.popitem(last=False)
+        with self._lock:
+            self._items[key] = CacheEntry(value=value, expires_at=time.monotonic() + self.ttl_seconds)
+            self._items.move_to_end(key)
+            while len(self._items) > self.max_entries:
+                self._items.popitem(last=False)
 
     def stats(self) -> dict[str, int]:
-        return {"entries": len(self._items), "max": self.max_entries, "ttl": self.ttl_seconds}
+        with self._lock:
+            return {"entries": len(self._items), "max": self.max_entries, "ttl": self.ttl_seconds}

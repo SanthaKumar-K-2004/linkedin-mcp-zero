@@ -30,8 +30,19 @@ COPY README.md ./
 # Re-install the package to ensure entry points are registered
 RUN uv pip install -e .
 
+# Create non-root user for container security
+RUN addgroup --system --gid 1001 mcp && \
+    adduser --system --uid 1001 --ingroup mcp mcp && \
+    chown -R mcp:mcp /app
+
+USER mcp
+
 # Expose port for streamable-http mode
 EXPOSE 8000
+
+# Container healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run mcp server in streamable-http mode by default
 CMD ["uv", "run", "linkedin-mcp-zero", "--transport", "streamable-http", "--host", "0.0.0.0", "--port", "8000"]

@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import secrets
+from contextlib import suppress
+from pathlib import Path
 
+from platformdirs import user_data_dir
 from rich.console import Console
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
+from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.config.install import (
     PackageExtra,
     install_client_config,
@@ -142,10 +147,16 @@ def cli() -> None:
         api_key = settings.api_key
         if not api_key:
             api_key = secrets.token_hex(16)
-            console = Console()
+            key_dir = Path(settings.data_dir or user_data_dir(DATA_DIR_NAME))
+            key_dir.mkdir(parents=True, exist_ok=True)
+            key_file = key_dir / ".http_api_key"
+            key_file.write_text(api_key, encoding="utf-8")
+            with suppress(Exception):
+                os.chmod(key_file, 0o600)
+            console = Console(stderr=True)
             console.print(
-                "[bold yellow]WARNING:[/bold yellow] No API key configured for HTTP transport. "
-                f"Generated secure API key: [bold green]{api_key}[/bold green]"
+                "[bold yellow]SECURITY WARNING:[/bold yellow] No API key configured for HTTP transport. "
+                f"Generated secure API key saved to [bold cyan]{key_file}[/bold cyan] (permissions 0600)."
             )
 
         cors_origins = settings.cors_allowed_origins
