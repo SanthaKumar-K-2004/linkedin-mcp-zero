@@ -388,3 +388,135 @@ async def test_analyze_job_viability_real_scraped_keys(tmp_path: Path) -> None:
     assert result["location"] == "San Francisco, CA"
     assert result["status"] == "ACTIVE_HIGH_PRIORITY"
     assert result["viability_score"] >= 0.8
+
+
+@pytest.mark.asyncio
+async def test_export_jobs_custom_filename_and_path_traversal(tmp_path: Path) -> None:
+    """Ensure custom filename is supported and directory traversal attempts are sanitized or rejected."""
+    mock_storage = AsyncMock()
+    mock_storage.exports_dir = tmp_path
+    mock_public = AsyncMock()
+    mock_public.get_job_details.return_value = {
+        "id": "201",
+        "company": "DeepMind",
+        "title": "Research Scientist",
+        "location": "London, UK",
+        "salary": "£180k",
+        "job_type": "Full-time",
+        "url": "https://linkedin.com/jobs/view/201",
+    }
+    engine = MatchingEngine(mock_storage, mock_public)
+
+    # 1. Custom filename creates file with proper extension
+    res = await engine.export_jobs(["201"], fmt="json", filename="deepmind_roles")
+    assert res["count"] == 1
+    assert "deepmind_roles.json" in res["path"]
+    assert Path(res["path"]).exists()
+    content = Path(res["path"]).read_text(encoding="utf-8")
+    assert "DeepMind" in content
+
+    # 2. Path traversal attempt like "../../evil" is stripped to basename and contained inside exports_dir
+    res_traversal = await engine.export_jobs(["201"], fmt="csv", filename="../../evil_export")
+    assert res_traversal["count"] == 1
+    target_path = Path(res_traversal["path"])
+    assert target_path.parent == tmp_path
+    assert target_path.name == "evil_export.csv"
+
+
+@pytest.mark.asyncio
+async def test_export_jobs_and_compare_jobs_field_aliases(tmp_path: Path) -> None:
+    """Ensure compare_jobs and export_jobs handle alternate field names like company/title/salary/location."""
+    mock_storage = AsyncMock()
+    mock_storage.exports_dir = tmp_path
+    mock_public = AsyncMock()
+    mock_public.get_job_details.return_value = {
+        "id": "301",
+        "company": "Anthropic",
+        "title": "Safety Researcher",
+        "salary": "$250k",
+        "location": "San Francisco, CA",
+        "job_type": "Full-time",
+        "url": "https://linkedin.com/jobs/view/301",
+    }
+    engine = MatchingEngine(mock_storage, mock_public)
+
+    # Verify compare_jobs populates row correctly
+    comp = await engine.compare_jobs(["301"])
+    assert len(comp["rows"]) == 1
+    row = comp["rows"][0]
+    assert row[0] == "Anthropic"
+    assert row[1] == "Safety Researcher"
+    assert row[2] == "$250k"
+    assert row[3] == "San Francisco, CA"
+    assert row[4] == "Full-time"
+
+    # Verify export_jobs CSV sanitizes and writes all aliased fields
+    res_csv = await engine.export_jobs(["301"], fmt="csv")
+    csv_text = Path(res_csv["path"]).read_text(encoding="utf-8")
+    assert "Anthropic" in csv_text
+    assert "Safety Researcher" in csv_text
+    assert "$250k" in csv_text
+
+
+def test_storage_skill_graph_none_and_invalid_type_resilience(tmp_path: Path) -> None:
+    """Ensure Storage skill graph methods gracefully handle None, non-string, and empty skill inputs."""
+    from linkedin_mcp_zero.config.settings import Settings
+    from linkedin_mcp_zero.storage.db import Storage
+
+    storage = Storage(Settings(data_dir=str(tmp_path)))
+
+    # record_skill_cooccurrences with non-string, None, empty entries
+    storage.record_skill_cooccurrences(["Python", None, 123, "   ", "Docker"])  # type: ignore[list-item]
+
+    # expand_skills with None / invalid values
+    taxonomy = storage.expand_skills(["Python", None, 456])  # type: ignore[list-item]
+    assert "Python" in taxonomy
+    assert taxonomy["Python"] == ["docker"]
+
+    # get_skill_cluster with None or invalid values
+    empty_cluster = storage.get_skill_cluster(None)  # type: ignore[arg-type]
+    assert empty_cluster["total_connections"] == 0
+    assert empty_cluster["direct_connections"] == []
+
+
+def test_version_consistency_and_catalog_synchronization() -> None:
+    """Ensure __version__ matches v0.4.0 and all 44 tools are registered in catalog."""
+    import linkedin_mcp_zero
+    from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
+
+    assert linkedin_mcp_zero.__version__ == "0.4.1"
+    assert len(TOOLS) == 44
+    assert tool_help("dia")["name"] == "deep_industry_analysis"
+
+
+def test_metrics_store_connection_timeout_and_permissions(tmp_path: Path) -> None:
+    """Ensure MetricsStore initializes with WAL, busy_timeout, and chmod 0600 security."""
+    import stat
+
+    from linkedin_mcp_zero.config.settings import Settings
+    from linkedin_mcp_zero.metrics.store import MetricsStore
+
+    settings = Settings(data_dir=str(tmp_path))
+    store = MetricsStore(settings)
+
+    # Check connection PRAGMA busy_timeout
+    with store._connect() as conn:
+        timeout_row = conn.execute("PRAGMA busy_timeout").fetchone()
+        assert timeout_row[0] == 5000
+
+    # Check file permissions on metrics.sqlite3
+    mode = stat.S_IMODE(store.db_path.stat().st_mode)
+    assert mode == 0o600
+
+
+def test_vector_storage_uuid5_upsert_and_fallback(tmp_path: Path) -> None:
+    """Ensure VectorStorage handles arbitrary string doc_ids without collisions."""
+    from linkedin_mcp_zero.storage.vector_db import VectorStorage
+
+    store = VectorStorage(collection_name="test_col")
+    store.upsert("doc_alpha_123", [0.1, 0.2, 0.3], {"title": "Engineer"})
+    store.upsert("doc_beta_456", [0.9, 0.8, 0.7], {"title": "Scientist"})
+
+    results = store.search([0.9, 0.8, 0.7], limit=1)
+    assert len(results) == 1
+    assert results[0]["title"] == "Scientist"

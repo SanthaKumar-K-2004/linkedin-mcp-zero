@@ -50,7 +50,7 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         api_key=settings.anthropic_api_key,
         openai_api_key=settings.openai_api_key,
     )
-    resume = ResumeEngine(storage, llm_provider)
+    resume = ResumeEngine(storage, public, llm_provider)
     matching = MatchingEngine(storage, public, llm_provider)
     browser = BrowserEngine(settings)
     voyager = VoyagerEngine(settings)
@@ -70,6 +70,14 @@ def create_app(settings: Settings | None = None) -> FastMCP:
             await browser.close()
         except Exception as e:
             logger.warning("Failed to close browser engine during shutdown", error=str(e))
+        try:
+            await voyager.close()
+        except Exception as e:
+            logger.warning("Failed to close voyager engine during shutdown", error=str(e))
+        try:
+            await llm_provider.close()
+        except Exception as e:
+            logger.warning("Failed to close llm provider during shutdown", error=str(e))
 
     app._lifespan = lifespan_handler
 
@@ -215,9 +223,13 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         return await matching.compare_jobs(ids)
 
     @async_tool("local", annotations=WRITE_ANNOTATIONS)
-    async def export_jobs(ids: list[str], fmt: Literal["csv", "json", "xlsx"] = "csv") -> dict[str, object]:
+    async def export_jobs(
+        ids: list[str],
+        fmt: Literal["csv", "json", "xlsx"] = "csv",
+        filename: str | None = None,
+    ) -> dict[str, object]:
         """Export public job details to a local file."""
-        return await matching.export_jobs(ids, fmt)
+        return await matching.export_jobs(ids, fmt, filename=filename)
 
     @async_tool("public_no_login")
     async def analyze_job_viability(job_id_or_url: str) -> dict[str, object]:
@@ -585,7 +597,7 @@ Market data context: {json.dumps(trends)}"""
         )
         return {"job_id": job_id, "analysis": analysis}
 
-    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
+    @async_tool("interactive", annotations=READ_ONLY_ANNOTATIONS)
     async def personalized_job_hunt(kw: str, ctx: Context) -> dict[str, object]:
         """Interactive job search that asks you what matters most."""
         result = await ctx.elicit(
@@ -644,7 +656,7 @@ Market data context: {json.dumps(trends)}"""
 
         return {"jobs": filtered[:10], "prefs_applied": prefs.model_dump()}
 
-    @app.tool(annotations=WRITE_ANNOTATIONS)
+    @async_tool("interactive", annotations=WRITE_ANNOTATIONS)
     async def confirm_export(ids: list[str], fmt: str, ctx: Context) -> dict[str, object]:
         """Export jobs with user confirmation."""
         result = await ctx.elicit(
@@ -659,7 +671,7 @@ Market data context: {json.dumps(trends)}"""
 
         return await matching.export_jobs(ids, fmt)
 
-    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
+    @async_tool("local", annotations=READ_ONLY_ANNOTATIONS)
     async def get_resume_insights_advanced(id: int, ctx: Context | None = None) -> dict[str, object]:
         """Get advanced AI-powered insights on a resume using LLM reasoning."""
         resume_data = storage.get_resume(id)
@@ -684,7 +696,7 @@ Provide:
         )
         return {"id": id, "insights": analysis}
 
-    @app.tool(annotations=READ_ONLY_ANNOTATIONS)
+    @async_tool("public_no_login", annotations=READ_ONLY_ANNOTATIONS)
     async def deep_industry_analysis(industry: str, ctx: Context | None = None) -> dict[str, object]:
         """Full industry analysis with progress updates."""
         jobs = await public.search_jobs(kw=industry, limit=10)

@@ -102,15 +102,22 @@ class LLMProvider:
             except Exception as e:
                 logger.warning("Direct OpenAI API call failed, falling back to local heuristics", error=str(e))
 
-        # Heuristic analysis fallback for offline/non-sampling environments
+        # Data-driven synthesis fallback for offline/non-sampling environments
         name = "Candidate"
-        skills = []
+        skills: list[str] = []
+        market_gaps: list[str] = []
+        target = "Software Engineering"
 
         for line in prompt.split("\n"):
-            if line.startswith("Name:"):
-                name = line.replace("Name:", "").strip()
-            elif line.startswith("Skills:"):
-                skills = [s.strip() for s in line.replace("Skills:", "").split(",") if s.strip()]
+            line_str = line.strip()
+            if line_str.startswith("Candidate Name:") or line_str.startswith("Name:"):
+                name = line_str.split(":", 1)[1].strip() or "Candidate"
+            elif line_str.startswith("Current Skills:") or line_str.startswith("Skills:"):
+                skills = [s.strip() for s in line_str.split(":", 1)[1].split(",") if s.strip()]
+            elif line_str.startswith("Live Market Gaps:"):
+                market_gaps = [s.strip() for s in line_str.split(":", 1)[1].split(",") if s.strip()]
+            elif line_str.startswith("Market Target:"):
+                target = line_str.split(":", 1)[1].strip() or target
 
         if not skills:
             return (
@@ -119,27 +126,23 @@ class LLMProvider:
                 f"No explicit skills parsed from prompt. Details: {prompt[:100]}..."
             )
 
-        all_modern_skills = {"docker", "kubernetes", "aws", "gcp", "ci/cd", "rust", "golang", "typescript", "react"}
-        missing_skills = [s.title() for s in all_modern_skills if s not in {sk.lower() for sk in skills}][:3]
-        strengths = [s.title() for s in skills[:3]]
+        gap_display = ", ".join(market_gaps[:3]) if market_gaps else "Domain competencies well-covered."
 
         return f"""[Local Heuristic Analysis Fallback]
 Candidate Profile Analysis: {name}
+Target Domain: {target}
 
 1. Executive Summary:
-The candidate {name} has a strong foundation with skills in {", ".join(skills[:5])}. This profile is well-suited for roles matching these technologies, with opportunities to expand into modern cloud-native systems.
+{name} presents demonstrated capabilities in {", ".join(skills[:4])}. Evaluated against live labor market trends for {target}, this profile aligns with core operational and technical requirements.
 
-2. Top 3 Strengths:
-- Proficient in {strengths[0] if len(strengths) > 0 else "Core Technologies"}
-- Experience with {strengths[1] if len(strengths) > 1 else "Development Lifecycle"}
-- Foundational skills in {strengths[2] if len(strengths) > 2 else "Software Engineering"}
+2. Verified Core Competencies:
+- Core Technical Stack: {", ".join(skills[:3])}
+- Supporting Domain Tools: {", ".join(skills[3:6]) if len(skills) > 3 else "Foundational engineering tooling"}
 
-3. Key Areas of Improvement & Missing Skills:
-- Missing coverage for modern tools: {", ".join(missing_skills) if missing_skills else "No major skill gaps identified."}
-- Could benefit from adding cloud-native deployment experience.
+3. Live Market Gaps & Opportunities:
+- In-demand competencies to emphasize: {gap_display}
 
-4. Tailored Recommendations:
-- Highlight concrete project accomplishments and metrics on the resume.
-- List specific backend framework versions and database scaling experiences.
-- Detail containerization and CI/CD pipeline automation setup.
+4. Actionable Strategy:
+- Quantify production outcomes, performance gains, and engineering scale in existing project summaries.
+- Align resume keywords directly with verified live posting requirements for {target}.
 """

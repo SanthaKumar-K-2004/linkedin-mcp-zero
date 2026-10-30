@@ -35,8 +35,17 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
     li_at: str | None = Field(default=None, validation_alias="LI_AT")
-    api_key: str | None = Field(default=None, validation_alias="API_KEY")
-    cors_allowed_origins: list[str] = Field(default=["*"], validation_alias="CORS_ALLOWED_ORIGINS")
+    cors_allowed_origins: list[str] = Field(
+        default=[
+            "http://localhost",
+            "http://127.0.0.1",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:8000",
+            "http://localhost:8080",
+        ],
+        validation_alias="CORS_ALLOWED_ORIGINS",
+    )
     rate_limit_per_minute: int = Field(default=60, validation_alias="RATE_LIMIT_PER_MINUTE")
     oauth_metadata_url: str | None = None
     oauth_client_id: str | None = None

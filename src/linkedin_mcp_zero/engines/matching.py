@@ -162,7 +162,8 @@ class MatchingEngine:
             detail = await self.public.get_job_details(job_id_or_url)
         except Exception as e:
             return {"error": "fetch_failed", "detail": str(e), "job_id": job_id_or_url}
-        viability = self.evaluate_job_viability({"id": job_id_or_url}, detail)
+        actual_id = str(detail.get("id") or job_id_or_url)
+        viability = self.evaluate_job_viability({"id": actual_id}, detail)
         if str(viability.get("job_id", "")):
             self.storage.record_job_metadata(
                 job_id=str(viability["job_id"]),
@@ -195,20 +196,29 @@ class MatchingEngine:
         # Expand skills via in-process skill graph
         expanded_skills_map = self.storage.expand_skills(list(skills))
 
-        matches: list[dict[str, Any]] = []
-        for job in jobs:
-            detail = {}
-            if job.get("id"):
+        import asyncio
+
+        semaphore = asyncio.Semaphore(5)
+
+        async def _fetch_detail(job_dict: dict[str, Any]) -> dict[str, Any]:
+            jid = job_dict.get("id")
+            if not jid:
+                return {}
+            async with semaphore:
                 try:
-                    detail = await self.public.get_job_details(str(job["id"]))
+                    return await self.public.get_job_details(str(jid))
                 except Exception as e:
                     logger.warning(
                         "Failed to get job details for matching",
-                        job_id=job["id"],
+                        job_id=jid,
                         error=str(e),
                     )
-                    detail = {}
+                    return {}
 
+        details_results = await asyncio.gather(*(_fetch_detail(job) for job in jobs))
+
+        matches: list[dict[str, Any]] = []
+        for job, detail in zip(jobs, details_results, strict=True):
             # Index into FTS5 for fast full-text querying
             if job.get("id"):
                 self.storage.index_job_fts(
@@ -243,6 +253,18 @@ class MatchingEngine:
             score = int(0.4 * keyword_score + 0.6 * (semantic_sim * 100))
             score = max(0, min(100, score))
 
+            why_reasons: list[str] = []
+            if matched:
+                why_reasons.append(f"Direct match on {len(matched)} skills ({', '.join(matched[:3])})")
+            if inferred_skills:
+                why_reasons.append(
+                    f"Inferred {len(inferred_skills)} complementary skills ({', '.join(item['required'] for item in inferred_skills[:2])})"
+                )
+            why_reasons.append(
+                f"{viability['status'].replace('_', ' ').title()} viability ({viability['applicants']} applicants, {viability['repost_count']} reposts)"
+            )
+            dynamic_why = ". ".join(why_reasons) + "."
+
             if score >= min_score:
                 matches.append(
                     {
@@ -252,7 +274,7 @@ class MatchingEngine:
                         "match_skills": matched[:8],
                         "inferred_skills": inferred_skills[:4],
                         "viability": viability,
-                        "why": "Hybrid neuro-symbolic matching with graph-inferred skill alignment.",
+                        "why": dynamic_why,
                     }
                 )
 
@@ -306,11 +328,11 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
             if isinstance(result, dict):
                 rows.append(
                     [
-                        str(result.get("co") or ""),
-                        str(result.get("t") or ""),
-                        str(result.get("sal") or ""),
-                        str(result.get("loc") or ""),
-                        str(result.get("type") or ""),
+                        str(result.get("co") or result.get("company") or ""),
+                        str(result.get("t") or result.get("title") or ""),
+                        str(result.get("sal") or result.get("salary") or ""),
+                        str(result.get("loc") or result.get("location") or ""),
+                        str(result.get("type") or result.get("job_type") or ""),
                         str(result.get("url") or ""),
                     ]
                 )
@@ -334,8 +356,14 @@ Provide a 1-sentence explanation of why the candidate is a match and what the mo
                 logger.warning("Failed to fetch job details for export", job_id=job_id, error=err_str)
 
         fmt = fmt.lower()
-        file_name = filename or f"jobs_export.{fmt}"
-        path = self.storage.exports_dir / file_name
+        if filename:
+            safe_name = Path(filename).name
+            file_name = safe_name if safe_name.endswith(f".{fmt}") else f"{safe_name}.{fmt}"
+        else:
+            file_name = f"jobs_export.{fmt}"
+        path = (self.storage.exports_dir / file_name).resolve()
+        if not str(path).startswith(str(self.storage.exports_dir.resolve())):
+            return {"error": "invalid_filename", "filename": filename}
         if fmt == "json":
             path.write_text(json.dumps(jobs, indent=2, ensure_ascii=True), encoding="utf-8")
         elif fmt == "csv":
@@ -355,7 +383,18 @@ def _sanitize_csv_cell(val: Any) -> Any:
 
 def _write_csv(path: Path, jobs: list[dict[str, Any]]) -> None:
     fields = ["id", "t", "co", "loc", "sal", "type", "url"]
-    sanitized_jobs = [{k: _sanitize_csv_cell(v) for k, v in job.items()} for job in jobs]
+    sanitized_jobs = []
+    for job in jobs:
+        row = {
+            "id": job.get("id", ""),
+            "t": job.get("t") or job.get("title") or "",
+            "co": job.get("co") or job.get("company") or "",
+            "loc": job.get("loc") or job.get("location") or "",
+            "sal": job.get("sal") or job.get("salary") or "",
+            "type": job.get("type") or job.get("job_type") or "",
+            "url": job.get("url", ""),
+        }
+        sanitized_jobs.append({k: _sanitize_csv_cell(v) for k, v in row.items()})
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()

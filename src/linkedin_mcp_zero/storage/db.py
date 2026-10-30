@@ -29,6 +29,7 @@ class Storage:
         conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
     def _init_db(self) -> None:
@@ -95,10 +96,13 @@ class Storage:
                 )
                 """
             )
+        if self.db_path.exists():
+            with suppress(Exception):
+                os.chmod(self.db_path, 0o600)
 
     def record_skill_cooccurrences(self, skills: list[str]) -> None:
         """Dynamically learn real-time skill relationships from actual scraped jobs and real resumes."""
-        cleaned = list({s.strip().lower() for s in skills if s and len(s.strip()) > 1})
+        cleaned = list({s.strip().lower() for s in skills if isinstance(s, str) and len(s.strip()) > 1})
         if len(cleaned) < 2:
             return
         with self._connect() as conn:
@@ -230,6 +234,8 @@ class Storage:
         res: dict[str, list[str]] = {}
         with self._connect() as conn:
             for skill in skills:
+                if not skill or not isinstance(skill, str):
+                    continue
                 normalized = skill.lower().strip()
                 rows = conn.execute(
                     "SELECT target_skill FROM skill_graph WHERE source_skill = ?",
@@ -248,6 +254,8 @@ class Storage:
 
     def get_skill_cluster(self, skill: str) -> dict[str, Any]:
         """Return the cluster of related technologies and capabilities for a skill."""
+        if not skill or not isinstance(skill, str):
+            return {"skill": str(skill or ""), "direct_connections": [], "related_from": [], "total_connections": 0}
         normalized = skill.lower().strip()
         with self._connect() as conn:
             direct = conn.execute(

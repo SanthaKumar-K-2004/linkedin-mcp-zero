@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import sqlite3
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -18,9 +20,10 @@ class MetricsStore:
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
     def _init_db(self) -> None:
@@ -52,6 +55,9 @@ class MetricsStore:
                 )
                 """
             )
+        if self.db_path.exists():
+            with suppress(Exception):
+                os.chmod(self.db_path, 0o600)
 
     def insert_call(
         self,

@@ -26,11 +26,12 @@ from linkedin_mcp_zero.storage.db import Storage
 
 
 def test_catalog_tool_count() -> None:
-    assert len(TOOLS) == 43
+    assert len(TOOLS) == 44
     assert tool_help("sj")["name"] == "search_jobs"
     assert tool_help("gus")["name"] == "get_usage_stats"
     assert tool_help("ajv")["name"] == "analyze_job_viability"
-    assert tool_help()["count"] == 43
+    assert tool_help("dia")["name"] == "deep_industry_analysis"
+    assert tool_help()["count"] == 44
 
 
 def test_storage_alert_roundtrip(tmp_path: Path) -> None:

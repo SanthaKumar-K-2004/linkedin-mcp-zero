@@ -74,6 +74,14 @@ TOOLS: list[dict[str, object]] = [
         "desc": "Market insights for an industry",
     },
     {
+        "name": "deep_industry_analysis",
+        "short": "dia",
+        "engine": "E1",
+        "risk": "public_no_login_read_only",
+        "tokens": 600,
+        "desc": "Deep industry analysis with progress reporting",
+    },
+    {
         "name": "search_jobs_advanced",
         "short": "sja",
         "engine": "E1",

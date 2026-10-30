@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 500" width="100%" height="500" fill="none">
+  <defs>
+    <linearGradient id="termBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d" />
+      <stop offset="100%" stop-color="#040711" />
+    </linearGradient>
+
+    <linearGradient id="headerBg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#141c2e" />
+      <stop offset="100%" stop-color="#0e1626" />
+    </linearGradient>
+
+    <filter id="termGlow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#00F0FF" flood-opacity="0.12" />
+    </filter>
+
+    <style>
+      .font-mono {
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      }
+      .font-sans {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+
+      /* Animated appearance stages */
+      @keyframes step1 {
+        0%, 10% { opacity: 0; }
+        15%, 100% { opacity: 1; }
+      }
+      @keyframes step2 {
+        0%, 25% { opacity: 0; }
+        30%, 100% { opacity: 1; }
+      }
+      @keyframes step3 {
+        0%, 42% { opacity: 0; }
+        47%, 100% { opacity: 1; }
+      }
+      @keyframes step4 {
+        0%, 60% { opacity: 0; }
+        65%, 100% { opacity: 1; }
+      }
+      @keyframes step5 {
+        0%, 78% { opacity: 0; }
+        83%, 100% { opacity: 1; }
+      }
+      @keyframes terminalLoop {
+        0%, 94% { opacity: 1; }
+        98%, 100% { opacity: 0; }
+      }
+      @keyframes blinkCursor {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+
+      .terminal-screen {
+        animation: terminalLoop 18s infinite ease-in-out;
+      }
+      .step-1 { animation: step1 18s infinite; }
+      .step-2 { animation: step2 18s infinite; }
+      .step-3 { animation: step3 18s infinite; }
+      .step-4 { animation: step4 18s infinite; }
+      .step-5 { animation: step5 18s infinite; }
+      .cursor { animation: blinkCursor 0.8s infinite; }
+    </style>
+  </defs>
+
+  <!-- Terminal Window Shell with Glow -->
+  <g filter="url(#termGlow)">
+    <rect x="10" y="10" width="900" height="480" rx="14" fill="url(#termBg)" stroke="#1e293b" stroke-width="1.5" />
+    
+    <!-- Window Titlebar -->
+    <rect x="10" y="10" width="900" height="42" rx="14" fill="url(#headerBg)" />
+    <!-- Flatten bottom corners of titlebar -->
+    <rect x="10" y="38" width="900" height="14" fill="url(#headerBg)" />
+    <line x1="10" y1="52" x2="910" y2="52" stroke="#1e293b" stroke-width="1" />
+
+    <!-- Window Control Buttons (macOS style) -->
+    <circle cx="34" cy="31" r="6" fill="#EF4444" />
+    <circle cx="54" cy="31" r="6" fill="#F59E0B" />
+    <circle cx="74" cy="31" r="6" fill="#10B981" />
+
+    <!-- Window Title -->
+    <text x="460" y="35" fill="#94A3B8" font-size="12" font-weight="600" text-anchor="middle" class="font-mono">
+      zsh · linkedin-mcp-zero --doctor · real-time execution demo
+    </text>
+
+    <!-- Terminal Status Badge -->
+    <rect x="800" y="21" width="86" height="20" rx="10" fill="#10B981" fill-opacity="0.15" stroke="#10B981" stroke-width="1" />
+    <circle cx="814" cy="31" r="3" fill="#10B981" />
+    <text x="824" y="35" fill="#34D399" font-size="10.5" font-weight="700" class="font-mono">MCP LIVE</text>
+  </g>
+
+  <!-- Terminal Body Content (Sequential Animated Steps) -->
+  <g class="terminal-screen" transform="translate(36, 80)">
+    
+    <!-- Step 1: Doctor Launch -->
+    <g class="step-1">
+      <text x="0" y="0" fill="#38BDF8" font-size="13" font-weight="700" class="font-mono">❯</text>
+      <text x="18" y="0" fill="#F1F5F9" font-size="13" font-weight="600" class="font-mono">uvx linkedin-mcp-zero --doctor</text>
+      
+      <text x="0" y="24" fill="#10B981" font-size="12.5" class="font-mono">[✓] FastMCP 2.0 Engine Initialized</text>
+      <text x="290" y="24" fill="#64748B" font-size="12" class="font-mono">| Python 3.12 · Stdio &amp; HTTP Ready</text>
+      
+      <text x="0" y="44" fill="#10B981" font-size="12.5" class="font-mono">[✓] SQLite FTS5 Hybrid Vector Store</text>
+      <text x="290" y="44" fill="#64748B" font-size="12" class="font-mono">| BM25 Porter Tokenizer · RRF k=60</text>
+      
+      <text x="0" y="64" fill="#10B981" font-size="12.5" class="font-mono">[✓] 44 Synchronized Production Tools</text>
+      <text x="290" y="64" fill="#38BDF8" font-size="12" font-weight="600" class="font-mono">(32 Public Core + 11 Browser + 1 Voyager)</text>
+    </g>
+
+    <!-- Step 2: Live Query Invocation -->
+    <g class="step-2" transform="translate(0, 96)">
+      <line x1="0" y1="-8" x2="840" y2="-8" stroke="#1e293b" stroke-dasharray="4,4" />
+      <text x="0" y="14" fill="#38BDF8" font-size="13" font-weight="700" class="font-mono">❯</text>
+      <text x="18" y="14" fill="#F1F5F9" font-size="13" font-weight="600" class="font-mono">claude-agent &gt; search_jobs(query="Staff AI Engineer", location="San Francisco, CA")</text>
+      
+      <text x="0" y="38" fill="#F59E0B" font-size="12.5" class="font-mono">[LIVE HTTP] TLS Impersonator Chrome 124</text>
+      <text x="310" y="38" fill="#94A3B8" font-size="12" class="font-mono">→ 200 OK (25 live postings fetched in 412ms)</text>
+    </g>
+
+    <!-- Step 3: FTS5 BM25 & Semantic RRF Fusion -->
+    <g class="step-3" transform="translate(0, 166)">
+      <text x="0" y="0" fill="#8B5CF6" font-size="12.5" font-weight="700" class="font-mono">[HYBRID RAG]</text>
+      <text x="105" y="0" fill="#E2E8F0" font-size="12.5" class="font-mono">Fusing SQLite FTS5 BM25 + Dense Semantic Embeddings (k=60):</text>
+      
+      <!-- Result Card 1 -->
+      <rect x="0" y="12" width="840" height="48" rx="6" fill="#111827" stroke="#0A66C2" stroke-width="1" />
+      <text x="14" y="32" fill="#38BDF8" font-size="12.5" font-weight="700" class="font-mono">#1 Anthropic</text>
+      <text x="135" y="32" fill="#F1F5F9" font-size="12.5" class="font-mono">Staff Systems Engineer, Inference Infrastructure</text>
+      <text x="590" y="32" fill="#10B981" font-size="11.5" font-weight="700" class="font-mono">RRF: 0.984</text>
+      <text x="690" y="32" fill="#64748B" font-size="11" class="font-mono">San Francisco, CA</text>
+      <text x="14" y="48" fill="#94A3B8" font-size="11" class="font-mono">Skills: PyTorch, CUDA, Distributed Systems, Triton · Posted: 4h ago</text>
+    </g>
+
+    <!-- Step 4: Real-Time Viability Scoring -->
+    <g class="step-4" transform="translate(0, 240)">
+      <!-- Result Card 2 -->
+      <rect x="0" y="0" width="840" height="48" rx="6" fill="#111827" stroke="#1e293b" stroke-width="1" />
+      <text x="14" y="20" fill="#38BDF8" font-size="12.5" font-weight="700" class="font-mono">#2 OpenAI</text>
+      <text x="110" y="20" fill="#F1F5F9" font-size="12.5" class="font-mono">Research Engineer, Model Optimization</text>
+      <text x="590" y="20" fill="#10B981" font-size="11.5" font-weight="700" class="font-mono">RRF: 0.962</text>
+      <text x="690" y="20" fill="#64748B" font-size="11" class="font-mono">San Francisco, CA</text>
+      <text x="14" y="36" fill="#94A3B8" font-size="11" class="font-mono">Skills: Python, C++, GPU Kernels, LLM Serving · Posted: 1d ago</text>
+
+      <!-- Viability Engine Line -->
+      <text x="0" y="68" fill="#10B981" font-size="12" font-weight="700" class="font-mono">[VIABILITY EVAL]</text>
+      <text x="130" y="68" fill="#F1F5F9" font-size="12" class="font-mono">Anthropic Score: 0.98/1.0 (Fresh Post | Reposts: 0 | Saturation: 28 applicants)</text>
+      <text x="730" y="68" fill="#10B981" font-size="11.5" font-weight="700" class="font-mono">HIGH PRIORITY</text>
+    </g>
+
+    <!-- Step 5: Dynamic Graph Co-occurrence Learning & Output -->
+    <g class="step-5" transform="translate(0, 330)">
+      <text x="0" y="0" fill="#00F0FF" font-size="12" font-weight="700" class="font-mono">[DYNAMIC GRAPH]</text>
+      <text x="130" y="0" fill="#94A3B8" font-size="12" class="font-mono">SQLite In-Process Co-occurrence Graph dynamically updated:</text>
+      <text x="20" y="20" fill="#F1F5F9" font-size="12" class="font-mono">↳ "PyTorch" ⟷ "CUDA" (weight: 4.8 ➜ 5.8) | "Triton" ⟷ "LLM Serving" (new edge weight: 1.0)</text>
+      
+      <!-- Prompt return -->
+      <g transform="translate(0, 46)">
+        <text x="0" y="0" fill="#38BDF8" font-size="13" font-weight="700" class="font-mono">❯</text>
+        <text x="18" y="0" fill="#34D399" font-size="12.5" font-weight="600" class="font-mono">Done in 680ms · 0 login required · Zero mock data · Ready for next tool call</text>
+        <rect x="660" y="-11" width="8" height="14" fill="#00F0FF" class="cursor" />
+      </g>
+    </g>
+
+  </g>
+</svg>

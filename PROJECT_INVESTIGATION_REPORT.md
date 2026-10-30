@@ -262,17 +262,18 @@ The table below catalogs all identified issues, design flaws, vulnerabilities, a
 | (Done)   | 9. Thread locks in `ttl_cache.py` & CB             | Small    | 40s to ~7s; eliminates  |
 |          | 10. Word-boundary regex in skill extraction        | Small    | race condition crashes. |
 +----------+----------------------------------------------------+----------+-------------------------+
-| P3       | 11. Refactor `app.py` into modular tool routers    | Medium   | Improves code health,   |
-| (Next)   | 12. Consolidate skills in `config/skills.py`       | Small    | testability, and        |
-|          | 13. Shared persistent `httpx.AsyncClient`          | Small    | connection reuse.       |
-|          | 14. Integrate or prune `vector_db.py`              | Small    | Removes dead code.      |
+| P3       | 11. Refactor `app.py` into modular tool routers    | Medium   | Improves modularity and |
+| (Active) | 12. Consolidate skills in `config/skills.py` (Done)| Small    | maintainability.        |
+|          | 13. Shared persistent `httpx.AsyncClient` (Done)   | Small    | Connection pooling.     |
+|          | 14. Integrate `vector_db.py` in Matching (Done)   | Small    | Qdrant/hybrid fallback. |
+|          | 15. Export filename sanitization & aliases (Done)  | Small    | Hardens file I/O & CSV. |
 +----------+----------------------------------------------------+----------+-------------------------+
 ```
 
 ### 5.2 Verification Evidence
-All critical (P0), security (P1), and performance/reliability (P2) patches have been implemented in the active workspace and validated with 6 dedicated regression tests in `tests/test_audit_fixes.py`.
+All critical (P0), security (P1), performance/reliability (P2), and data hardening (P3) patches have been implemented and verified with comprehensive regression tests in `tests/test_audit_fixes.py`.
 
-* **Full Test Suite Status**: **93 tests passed, 0 failures, 1 warning (Starlette deprecation)**
+* **Full Test Suite Status**: **108 tests passed, 0 failures, 1 warning (Starlette deprecation)**
 * **Linter Status**: **`ruff check .` $\rightarrow$ All checks passed!**
 * **Verification Command**:
   ```bash

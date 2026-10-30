@@ -28,20 +28,31 @@ class OAuthMiddleware:
         self.app = app
         self.oauth = oauth_config
         self.settings = settings
+        self._client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=5.0)
+        return self._client
+
+    async def close(self) -> None:
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     async def _validate_token(self, token: str) -> bool:
         if not self.settings or not self.settings.oauth_server_url:
             return True  # Bypass introspection if OAuth URL is not configured
 
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.post(
-                    f"{self.settings.oauth_server_url.rstrip('/')}/introspect",
-                    data={"token": token},
-                    auth=(self.settings.oauth_client_id or "", self.settings.oauth_client_secret or ""),
-                )
-                if resp.status_code == 200:
-                    return bool(resp.json().get("active", False))
+            client = await self._get_client()
+            resp = await client.post(
+                f"{self.settings.oauth_server_url.rstrip('/')}/introspect",
+                data={"token": token},
+                auth=(self.settings.oauth_client_id or "", self.settings.oauth_client_secret or ""),
+            )
+            if resp.status_code == 200:
+                return bool(resp.json().get("active", False))
         except Exception as e:
             logger.warning("OAuth token introspection failed", error=str(e))
         return False

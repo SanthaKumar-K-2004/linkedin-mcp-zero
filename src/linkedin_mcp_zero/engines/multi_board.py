@@ -12,7 +12,10 @@ async def search_jobs_multi(kw: str, loc: str = "", limit: int = 5, age: int = 1
     except ImportError:
         return await _linkedin_fallback(kw, loc, limit)
 
-    jobs = scrape_jobs(
+    import asyncio
+
+    jobs = await asyncio.to_thread(
+        scrape_jobs,
         site_name=["linkedin", "indeed", "google", "zip_recruiter", "glassdoor"],
         search_term=kw,
         location=loc or None,

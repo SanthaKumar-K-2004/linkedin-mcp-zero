@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import re
 from typing import Any
 
 import structlog
@@ -41,17 +40,18 @@ class VectorStorage:
         """Insert or update a document vector and payload metadata."""
         if self.client:
             try:
+                import uuid
+
                 from qdrant_client.models import PointStruct
 
-                # Simple integer conversion for qdrant ID limits
-                numeric_id = int(re.sub(r"\D", "", doc_id)) if any(c.isdigit() for c in doc_id) else hash(doc_id)
-                numeric_id = abs(numeric_id) % (10**8)
+                # Deterministic UUID5 to prevent ID collisions in Qdrant collections
+                point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"urn:linkedin_mcp:{doc_id}"))
 
                 self.client.upsert(
                     collection_name=self.collection_name,
-                    points=[PointStruct(id=numeric_id, vector=vector, payload={"doc_id": doc_id, **payload})],
+                    points=[PointStruct(id=point_id, vector=vector, payload={"doc_id": doc_id, **payload})],
                 )
-                logger.info("Upserted document into Qdrant", doc_id=doc_id)
+                logger.info("Upserted document into Qdrant", doc_id=doc_id, point_id=point_id)
                 return
             except Exception as e:
                 logger.warning("Qdrant upsert failed, using fallback database", error=str(e))

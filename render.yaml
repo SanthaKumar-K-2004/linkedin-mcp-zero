@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: linkedin-mcp-zero
+    runtime: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: LINKEDIN_MCP_API_KEY
+        generateValue: true
+    healthCheckPath: /health
