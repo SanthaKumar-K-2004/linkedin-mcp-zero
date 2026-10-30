@@ -8,11 +8,13 @@
 <br/>
 
 [![PyPI Version](https://img.shields.io/pypi/v/linkedin-mcp-zero?style=flat-square&logo=pypi&logoColor=white&color=0A66C2)](https://pypi.org/project/linkedin-mcp-zero/)
+[![GitHub Release](https://img.shields.io/github/v/release/SanthaKumar-K-2004/linkedin-mcp-zero?style=flat-square&logo=github&logoColor=white&color=238636)](https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero/releases)
 [![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![FastMCP 2.0](https://img.shields.io/badge/FastMCP-2.0%20Native-00F0FF?style=flat-square&logo=fastapi&logoColor=black)](https://modelcontextprotocol.io/)
 [![Transports](https://img.shields.io/badge/Transports-Stdio%20%7C%20Streamable--HTTP-8B5CF6?style=flat-square&logo=databricks&logoColor=white)](https://modelcontextprotocol.io/)
-[![Tests Passing](https://img.shields.io/badge/Tests-125%20Passed-10B981?style=flat-square&logo=pytest&logoColor=white)](tests/)
-[![Security Audit](https://img.shields.io/badge/Security-Bandit%20Passed-10B981?style=flat-square&logo=shield&logoColor=white)](https://bandit.readthedocs.io/)
+[![Tests Passing](https://img.shields.io/badge/Tests-151%20Passed-10B981?style=flat-square&logo=pytest&logoColor=white)](tests/)
+[![Security Audit](https://img.shields.io/badge/Security-Bandit%200%20Issues-10B981?style=flat-square&logo=shield&logoColor=white)](https://bandit.readthedocs.io/)
+[![Safe Mode](https://img.shields.io/badge/Safe--Mode-Enabled%20(Ban--Proof)-10B981?style=flat-square&logo=security&logoColor=white)](#security)
 [![Zero Login](https://img.shields.io/badge/Zero--Login-33%20Default%20Tools-success?style=flat-square&logo=linkedin&logoColor=white)](#tools)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 
@@ -81,17 +83,20 @@
 LinkedIn MCP Zero can automatically configure your favorite AI development environment with a single command:
 
 ```bash
-# Claude Desktop (macOS / Windows / Linux)
+# 🖥️ Anthropic Claude Desktop (macOS / Windows / Linux)
 uvx linkedin-mcp-zero --install-client claude-desktop
 
-# Cursor IDE
+# ⚡ Cursor IDE (Project or Global)
 uvx linkedin-mcp-zero --install-client cursor
 
-# Claude Code CLI
+# 💻 Claude Code CLI
 uvx linkedin-mcp-zero --install-client claude-code
 
-# VS Code (Roo Code / Cline / MCP Extension)
+# 📝 VS Code (Cline / Roo Code / MCP Extension)
 uvx linkedin-mcp-zero --install-client vscode
+
+# 🔮 Google Antigravity IDE & Agent Framework
+uvx linkedin-mcp-zero --install-client antigravity
 ```
 
 ### Option B: Verify System Health (`--doctor`)
@@ -104,31 +109,17 @@ uvx linkedin-mcp-zero --doctor
 
 ---
 
-### Option C: Manual Client Integration
+### Option C: Supported AI Tool Integrations & Configurations
 
-Expand your preferred client below to copy the ready-to-use configuration snippet:
+Choose your preferred AI client environment below for copy-pasteable JSON configurations and instant setup:
 
-<details open>
-<summary><b>🖥️ Claude Desktop</b> (macOS: <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>)</summary>
-<br/>
+#### 1. Anthropic Claude Desktop
+[![Claude Desktop](https://img.shields.io/badge/Claude%20Desktop-D97706?style=for-the-badge&logo=anthropic&logoColor=white)](https://claude.ai/download)
 
-```json
-{
-  "mcpServers": {
-    "linkedin-zero": {
-      "command": "uvx",
-      "args": [
-        "linkedin-mcp-zero"
-      ]
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>⚡ Cursor IDE</b> (<code>~/.cursor/mcp.json</code> or Workspace Settings)</summary>
-<br/>
+**Configuration File Location:**
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
 ```json
 {
@@ -142,42 +133,96 @@ Expand your preferred client below to copy the ready-to-use configuration snippe
   }
 }
 ```
-</details>
 
-<details>
-<summary><b>💻 Claude Code CLI</b> (Terminal One-Liner)</summary>
-<br/>
+---
 
+#### 2. Cursor IDE
+[![Cursor](https://img.shields.io/badge/Cursor%20IDE-000000?style=for-the-badge&logo=cursor&logoColor=white)](https://www.cursor.com/)
+
+**Configuration File Location:**
+- **Workspace:** `.cursor/mcp.json`
+- **Global:** `~/.cursor/mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "linkedin-zero": {
+      "command": "uvx",
+      "args": [
+        "linkedin-mcp-zero"
+      ]
+    }
+  }
+}
+```
+
+---
+
+#### 3. Visual Studio Code (Cline / Roo Code / Continue)
+[![VS Code](https://img.shields.io/badge/Visual%20Studio%20Code-007ACC?style=for-the-badge&logo=visualstudiocode&logoColor=white)](https://code.visualstudio.com/)
+
+**Configuration File Location:**
+- **macOS:** `~/Library/Application Support/Code/User/mcp.json`
+- **Linux:** `~/.config/Code/User/mcp.json`
+- **Windows:** `%APPDATA%\Code\User\mcp.json`
+
+```json
+{
+  "servers": {
+    "linkedin-zero": {
+      "command": "uvx",
+      "args": [
+        "linkedin-mcp-zero"
+      ]
+    }
+  }
+}
+```
+
+---
+
+#### 4. Claude Code CLI
+[![Claude Code](https://img.shields.io/badge/Claude%20Code%20CLI-1A1A1A?style=for-the-badge&logo=anthropic&logoColor=white)](https://docs.anthropic.com/en/docs/agents-and-tools/claude-code)
+
+**One-line terminal command:**
 ```bash
 claude mcp add linkedin-zero -- uvx linkedin-mcp-zero
 ```
-</details>
 
-<details>
-<summary><b>🌊 Windsurf &amp; Continue.dev</b> (<code>~/.codeium/windsurf/mcp_config.json</code>)</summary>
-<br/>
+---
+
+#### 5. Google Antigravity IDE & Agent Framework
+[![Google Antigravity](https://img.shields.io/badge/Google%20Antigravity-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://cloud.google.com/)
+
+**Configuration File Location:**
+- **Workspace:** `.agents/mcp_config.json`
+- **Global:** `~/.gemini/antigravity-ide/mcp_config.json` or `~/.gemini/config/mcp_config.json`
 
 ```json
 {
   "mcpServers": {
     "linkedin-zero": {
       "command": "uvx",
-      "args": ["linkedin-mcp-zero"]
+      "args": [
+        "linkedin-mcp-zero"
+      ]
     }
   }
 }
 ```
-</details>
 
-<details>
-<summary><b>🌐 Remote Streamable-HTTP Client</b> (For Web Apps &amp; Distributed Agents)</summary>
-<br/>
+---
+
+#### 6. Cloud Hosted / Remote Streamable-HTTP
+[![Cloud Hosted](https://img.shields.io/badge/Cloud%20Hosted%20(Render%20%7C%20Railway)-8B5CF6?style=for-the-badge&logo=fastapi&logoColor=white)](#deployment)
+
+For remote web apps, distributed teams, or hosted agents connecting over HTTP SSE:
 
 ```json
 {
   "mcpServers": {
     "linkedin-zero-remote": {
-      "url": "http://localhost:8000/mcp",
+      "url": "https://linkedin-mcp-zero.onrender.com/mcp",
       "headers": {
         "x-api-key": "your-secure-api-token"
       }
@@ -185,7 +230,6 @@ claude mcp add linkedin-zero -- uvx linkedin-mcp-zero
   }
 }
 ```
-</details>
 
 ---
 

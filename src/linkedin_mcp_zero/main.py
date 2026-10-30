@@ -38,19 +38,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--doctor", action="store_true", help="Print auto-detected runtime status")
     parser.add_argument(
         "--install-client",
-        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
+        choices=["claude-desktop", "claude-code", "cursor", "vscode", "antigravity"],
         default=None,
         help="Safely merge this MCP into a client config",
     )
     parser.add_argument(
         "--verify-client",
-        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
+        choices=["claude-desktop", "claude-code", "cursor", "vscode", "antigravity"],
         default=None,
         help="Verify an installed MCP client config",
     )
     parser.add_argument(
         "--client",
-        choices=["claude-desktop", "claude-code", "cursor", "vscode"],
+        choices=["claude-desktop", "claude-code", "cursor", "vscode", "antigravity"],
         default="claude-desktop",
         help="Client shape for --print-config",
     )

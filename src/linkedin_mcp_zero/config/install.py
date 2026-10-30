@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
-ClientName = Literal["claude-desktop", "claude-code", "cursor", "vscode"]
+ClientName = Literal["claude-desktop", "claude-code", "cursor", "vscode", "antigravity"]
 PackageSource = Literal["pypi", "github"]
 PackageExtra = Literal["browser", "multi", "pdf"]
 
@@ -41,12 +41,21 @@ FILE_CLIENTS: dict[str, dict[str, str]] = {
     "claude-desktop": {"key": "mcpServers"},
     "cursor": {"key": "mcpServers"},
     "vscode": {"key": "servers"},
+    "antigravity": {"key": "mcpServers"},
 }
 
 
 def config_path(client: ClientName, cwd: Path | None = None) -> Path:
     system = platform.system()
     home = Path.home()
+    if client == "antigravity":
+        base = cwd or Path.cwd()
+        if (base / ".agents").is_dir():
+            return base / ".agents" / "mcp_config.json"
+        config_dir = home / ".gemini" / "antigravity-ide"
+        if not config_dir.exists():
+            config_dir = home / ".gemini" / "config"
+        return config_dir / "mcp_config.json"
     if client == "cursor":
         base = cwd or Path.cwd()
         return base / ".cursor" / "mcp.json"

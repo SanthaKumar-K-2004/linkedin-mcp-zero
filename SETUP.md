@@ -57,6 +57,17 @@ uvx linkedin-mcp-zero --install-client vscode
 uvx linkedin-mcp-zero --verify-client vscode
 ```
 
+## Google Antigravity
+
+Install safely into Google Antigravity IDE & Agent Framework:
+
+```bash
+uvx linkedin-mcp-zero --install-client antigravity
+uvx linkedin-mcp-zero --verify-client antigravity
+```
+
+This writes directly to `.agents/mcp_config.json` (workspace) or `~/.gemini/antigravity-ide/mcp_config.json` (global).
+
 ## Browser Mode
 
 Browser/profile/feed/inbox tools are not enabled by default. They are read-only

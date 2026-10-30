@@ -12,6 +12,9 @@ from linkedin_mcp_zero.config.install import (
 def test_config_path_cwd(tmp_path) -> None:
     path = config_path("cursor", cwd=tmp_path)
     assert path == tmp_path / ".cursor" / "mcp.json"
+    (tmp_path / ".agents").mkdir()
+    ag_path = config_path("antigravity", cwd=tmp_path)
+    assert ag_path == tmp_path / ".agents" / "mcp_config.json"
 
 
 def test_install_client_config_new_file(tmp_path) -> None:
