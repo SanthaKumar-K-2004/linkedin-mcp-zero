@@ -59,6 +59,7 @@ def test_parse_search_results_compressed() -> None:
             "co": "Example Co",
             "loc": "NY, US",
             "url": "https://www.linkedin.com/jobs/view/senior-python-dev-3900000012",
+            "posted": "2026-06-10",
             "age": "4d",
         }
     ]

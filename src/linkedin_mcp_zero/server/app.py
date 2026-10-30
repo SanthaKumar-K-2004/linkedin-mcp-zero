@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncGenerator
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 import structlog
 from fastmcp import Context, FastMCP
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from linkedin_mcp_zero.config.autodetect import detect_runtime
 from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT
@@ -120,155 +120,245 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
     @async_tool("public_no_login")
     async def search_jobs(
-        kw: str,
-        loc: str = "",
-        type: JobType = "",
-        exp: int | None = None,
-        remote: bool | None = None,
-        age: str = "",
-        limit: int = DEFAULT_LIMIT,
+        kw: Annotated[
+            str,
+            Field(description="Target job title, skill, or role keyword (e.g. 'Python Backend Developer', 'DevOps')"),
+        ],
+        loc: Annotated[
+            str, Field(description="Geographic location or city (e.g. 'Chennai, India', 'Remote', 'Bengaluru')")
+        ] = "",
+        type: Annotated[
+            JobType, Field(description="Employment type filter: 'fulltime', 'parttime', 'contract', 'internship'")
+        ] = "",
+        exp: Annotated[
+            int | None,
+            Field(
+                description="Experience level code: 1=Internship, 2=Entry level, 3=Associate, 4=Mid-Senior, 5=Director, 6=Executive"
+            ),
+        ] = None,
+        remote: Annotated[
+            bool | None, Field(description="Set to true for remote-only positions, false for onsite")
+        ] = None,
+        age: Annotated[
+            str,
+            Field(
+                description="Posting age filter: 'r86400' (past 24h), 'r604800' (past week), 'r2592000' (past month)"
+            ),
+        ] = "",
+        limit: Annotated[
+            int, Field(description="Maximum number of unique job postings to return (1-100, default 20)")
+        ] = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        """Search LinkedIn jobs by keyword/location."""
+        """Search real-time public LinkedIn job listings without authentication.
+
+        Returns deduplicated jobs with:
+        - id: LinkedIn numerical job ID
+        - t: Job title
+        - co: Hiring organization name
+        - loc: Job location
+        - posted: Exact ISO date (YYYY-MM-DD)
+        - age: Relative age (e.g. '2d', '1w')
+        - benefits: Benefits badge (e.g. 'Actively Hiring')
+        - sal: Salary range if published
+        - relevance: Match percentage against search keyword (0-100%)
+        """
         return await public.search_jobs(kw, loc, type, exp, remote, age, limit)
 
     @async_tool("public_no_login")
     async def search_jobs_multi(
-        kw: str,
-        loc: str = "",
-        limit: int = 5,
-        age: int = 168,
+        kw: Annotated[str, Field(description="Job title or skill keyword to search across job boards")],
+        loc: Annotated[str, Field(description="Geographic location or 'Remote'")] = "",
+        limit: Annotated[int, Field(description="Maximum results to return per job board (default 5)")] = 5,
+        age: Annotated[int, Field(description="Maximum posting age in hours (default 168 = 7 days)")] = 168,
     ) -> list[dict[str, object]]:
-        """Search multiple public job boards."""
+        """Search multiple public job boards (LinkedIn, Indeed, Glassdoor, ZipRecruiter) simultaneously."""
         return await multi_search(kw, loc, limit, age)
 
     @async_tool("public_no_login")
-    async def get_job_details(id: str) -> dict[str, object]:
-        """Get full public LinkedIn job details."""
+    async def get_job_details(
+        id: Annotated[str, Field(description="LinkedIn numerical job ID (e.g. '4481120122') or direct job URL")],
+    ) -> dict[str, object]:
+        """Get full public LinkedIn job details including full description, salary, skills, and applicant count."""
         return await public.get_job_details(id)
 
     @async_tool("public_no_login")
     async def get_company_jobs(
-        co: str,
-        loc: str = "",
-        limit: int = DEFAULT_LIMIT,
+        co: Annotated[
+            str, Field(description="Hiring company name (e.g. 'Tata Consultancy Services', 'Zoho', 'Google')")
+        ],
+        loc: Annotated[str, Field(description="Target location or city (optional)")] = "",
+        limit: Annotated[
+            int, Field(description="Maximum number of company jobs to return (default 20)")
+        ] = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        """Get public jobs for a company."""
+        """Get real-time public job listings for a specific hiring company."""
         return await public.get_company_jobs(co, loc, limit)
 
     @async_tool("public_no_login")
-    async def get_company_profile(co: str) -> dict[str, object]:
-        """Get public company profile signals."""
+    async def get_company_profile(
+        co: Annotated[str, Field(description="Company name to analyze (e.g. 'Zoho', 'TCS')")],
+    ) -> dict[str, object]:
+        """Get public company profile signals including headcount trends and hiring velocity."""
         return await public.get_company_profile(co)
 
     @async_tool("public_no_login")
-    async def search_companies(kw: str, limit: int = DEFAULT_LIMIT) -> list[dict[str, object]]:
-        """Search companies from public job signals."""
+    async def search_companies(
+        kw: Annotated[str, Field(description="Industry or company keyword (e.g. 'Fintech', 'SaaS', 'Edtech')")],
+        limit: Annotated[int, Field(description="Maximum companies to return (default 20)")] = DEFAULT_LIMIT,
+    ) -> list[dict[str, object]]:
+        """Search hiring companies from public job market signals."""
         return await public.search_companies(kw, limit)
 
     @async_tool("public_no_login")
-    async def get_job_salary(id: str) -> dict[str, object]:
-        """Extract salary from public job details."""
+    async def get_job_salary(
+        id: Annotated[str, Field(description="LinkedIn numerical job ID (e.g. '4481120122')")],
+    ) -> dict[str, object]:
+        """Extract structured salary and compensation data from public job details."""
         return await public.get_job_salary(id)
 
     @async_tool("public_no_login")
-    async def get_job_trends(kw: str, loc: str = "") -> dict[str, object]:
-        """Get hiring trends by role/location."""
+    async def get_job_trends(
+        kw: Annotated[str, Field(description="Target role or skill (e.g. 'Python Backend', 'Cloud Architect')")],
+        loc: Annotated[str, Field(description="Target location (optional)")] = "",
+    ) -> dict[str, object]:
+        """Get hiring trends, demand velocity, and top demanded skills by role/location."""
         return await public.get_job_trends(kw, loc)
 
     @async_tool("public_no_login")
-    async def get_industry_insights(ind: str) -> dict[str, object]:
-        """Get public market insights for an industry."""
+    async def get_industry_insights(
+        ind: Annotated[
+            str, Field(description="Industry name or vertical (e.g. 'Technology', 'Healthcare', 'Finance')")
+        ],
+    ) -> dict[str, object]:
+        """Get public market insights and hiring demand for an industry vertical."""
         return await public.get_industry_insights(ind)
 
     @async_tool("public_no_login")
     async def search_jobs_advanced(
-        kw: str,
-        loc: str = "",
-        co: str = "",
-        type: JobType = "",
-        exp: int | None = None,
-        remote: bool | None = None,
-        age: str = "",
-        sort: Literal["relevance", "date"] = "relevance",
-        limit: int = DEFAULT_LIMIT,
+        kw: Annotated[str, Field(description="Job title, skill, or keyword search")],
+        loc: Annotated[str, Field(description="Location, city, or 'Remote'")] = "",
+        co: Annotated[str, Field(description="Filter strictly by hiring company name")] = "",
+        type: Annotated[
+            JobType, Field(description="Employment type: 'fulltime', 'parttime', 'contract', 'internship'")
+        ] = "",
+        exp: Annotated[
+            int | None, Field(description="Experience level: 1=Internship, 2=Entry level, 3=Associate, 4=Mid-Senior")
+        ] = None,
+        remote: Annotated[bool | None, Field(description="Filter for remote jobs")] = None,
+        age: Annotated[str, Field(description="Age filter: 'r86400' (24h), 'r604800' (week), 'r2592000' (month)")] = "",
+        sort: Annotated[
+            Literal["relevance", "date"], Field(description="Sort order: 'relevance' or 'date' (most recent first)")
+        ] = "relevance",
+        limit: Annotated[int, Field(description="Maximum number of job postings to return")] = DEFAULT_LIMIT,
     ) -> list[dict[str, object]]:
-        """Advanced public LinkedIn job search."""
+        """Advanced public LinkedIn job search with company filtering, date sorting, and relevance scoring."""
         return await public.search_jobs_advanced(kw, loc, co, type, exp, remote, age, sort, limit)
 
     @sync_tool("local")
-    def analyze_resume(path: str) -> dict[str, object]:
-        """Parse resume PDF/DOCX/text locally."""
+    def analyze_resume(
+        path: Annotated[str, Field(description="Absolute local file path to resume file (.pdf, .docx, .txt, or .md)")],
+    ) -> dict[str, object]:
+        """Parse resume PDF/DOCX/text locally into structured skills, experience, and contact info without external calls."""
         return resume.analyze_resume(path)
 
     @async_tool("local")
-    async def get_resume_insights(id: int, ctx: Context | None = None) -> dict[str, object]:
-        """Get resume skill gaps and suggestions with optional LLM reasoning."""
+    async def get_resume_insights(
+        id: Annotated[
+            int,
+            Field(
+                description="Internal integer ID of saved resume in local SQLite database (returned by analyze_resume)"
+            ),
+        ],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
+        """Get resume skill gaps, strengths, and suggestions with optional client LLM reasoning."""
         return await resume.get_resume_insights(id, ctx=ctx)
 
     @async_tool("local")
     async def tailor_resume(
-        path: str,
-        target_job: str = "",
-        target_role: str = "",
+        path: Annotated[str, Field(description="Local file path to candidate resume (.pdf, .docx, .txt, or .md)")],
+        target_job: Annotated[str, Field(description="Target job description text, or LinkedIn job ID / job URL")] = "",
+        target_role: Annotated[
+            str, Field(description="Target job title or role (e.g. 'Senior Backend Engineer', 'Product Manager')")
+        ] = "",
         ctx: Context | None = None,
     ) -> dict[str, object]:
-        """Universal multi-role ATS resume tailoring, keyword optimization, and real-time gap analysis."""
+        """Universal multi-role ATS resume tailoring, keyword optimization, and real-time gap analysis across 9 industry disciplines."""
         return await resume.tailor_resume(path, target_job=target_job, target_role=target_role, ctx=ctx)
 
     @async_tool("local")
     async def match_jobs_to_resume(
-        id: int,
-        kw: str = "",
-        loc: str = "",
-        min_score: int = 60,
-        limit: int = 15,
+        id: Annotated[int, Field(description="Internal integer ID of saved resume in local database")],
+        kw: Annotated[str, Field(description="Optional job title or keyword query to filter live jobs")] = "",
+        loc: Annotated[str, Field(description="Optional location filter (e.g. 'Chennai, India', 'Remote')")] = "",
+        min_score: Annotated[int, Field(description="Minimum match score threshold (0-100, default 60)")] = 60,
+        limit: Annotated[int, Field(description="Maximum number of ranked matching jobs to return")] = 15,
         ctx: Context | None = None,
     ) -> dict[str, object]:
-        """Rank public jobs against a saved resume with optional LLM reasoning."""
+        """Rank public jobs against a saved resume using TF-IDF and cosine skill similarity with optional LLM reasoning."""
         return await matching.match_jobs_to_resume(id, kw, loc, min_score, limit, ctx=ctx)
 
     @async_tool("local")
-    async def compare_jobs(ids: list[str]) -> dict[str, object]:
-        """Compare 2-5 public LinkedIn jobs."""
+    async def compare_jobs(
+        ids: Annotated[
+            list[str], Field(description="List of 2 to 5 LinkedIn numerical job IDs to compare side-by-side")
+        ],
+    ) -> dict[str, object]:
+        """Compare 2-5 public LinkedIn jobs on requirements, skills, seniority, and viability."""
         return await matching.compare_jobs(ids)
 
     @async_tool("local", annotations=WRITE_ANNOTATIONS)
     async def export_jobs(
-        ids: list[str],
-        fmt: Literal["csv", "json", "xlsx"] = "csv",
-        filename: str | None = None,
+        ids: Annotated[list[str], Field(description="List of LinkedIn job IDs to export")],
+        fmt: Annotated[
+            Literal["csv", "json", "xlsx"], Field(description="Export file format: 'csv', 'json', or 'xlsx'")
+        ] = "csv",
+        filename: Annotated[str | None, Field(description="Custom output file name (optional)")] = None,
     ) -> dict[str, object]:
-        """Export public job details to a local file."""
+        """Export public job details to a local CSV, JSON, or Excel file."""
         return await matching.export_jobs(ids, fmt, filename=filename)
 
     @async_tool("public_no_login")
-    async def analyze_job_viability(job_id_or_url: str) -> dict[str, object]:
-        """Assess hiring viability, applicant saturation, and ghost-job probability."""
+    async def analyze_job_viability(
+        job_id_or_url: Annotated[
+            str, Field(description="LinkedIn numerical job ID (e.g. '4481120122') or direct job URL")
+        ],
+    ) -> dict[str, object]:
+        """Assess hiring viability, applicant saturation, and ghost-job probability based on public signals."""
         return await matching.analyze_job_viability(job_id_or_url)
 
     @sync_tool("local")
-    def expand_skill_cluster(skill: str) -> dict[str, object]:
+    def expand_skill_cluster(
+        skill: Annotated[str, Field(description="Technology or skill name (e.g. 'Python', 'FastAPI', 'Docker')")],
+    ) -> dict[str, object]:
         """Explore technology ecosystems and related skills via in-process knowledge graph."""
         return storage.get_skill_cluster(skill)
 
     @sync_tool("local", annotations=WRITE_ANNOTATIONS)
     def save_job_alert(
-        name: str,
-        kw: str,
-        loc: str = "",
-        freq: Literal["daily", "weekly"] = "daily",
+        name: Annotated[str, Field(description="Descriptive name label for this alert (e.g. 'Chennai Python Jobs')")],
+        kw: Annotated[str, Field(description="Target job title or skill keywords")],
+        loc: Annotated[str, Field(description="Geographic location or 'Remote'")] = "",
+        freq: Annotated[
+            Literal["daily", "weekly"], Field(description="Alert check frequency: 'daily' or 'weekly'")
+        ] = "daily",
     ) -> dict[str, object]:
-        """Save a recurring job search."""
+        """Save a recurring public job search alert to local database."""
         return storage.save_alert(name, kw, loc, freq)
 
     @sync_tool("local")
     def get_saved_alerts() -> list[dict[str, object]]:
-        """List saved job alerts."""
+        """List all saved job alerts and their last check timestamps."""
         return storage.list_alerts()
 
     @async_tool("public_no_login")
-    async def check_saved_alerts(ids: list[int] | None = None) -> list[dict[str, object]]:
-        """Run saved alerts and report new matches."""
+    async def check_saved_alerts(
+        ids: Annotated[
+            list[int] | None,
+            Field(description="Optional list of specific alert IDs to check. If omitted, checks all saved alerts."),
+        ] = None,
+    ) -> list[dict[str, object]]:
+        """Run saved alerts against live LinkedIn search and report newly discovered matches."""
         results = []
         for alert in storage.selected_alerts(ids):
             jobs = await public.search_jobs(
@@ -294,66 +384,78 @@ def create_app(settings: Settings | None = None) -> FastMCP:
 
         @async_tool("browser_readonly")
         async def get_my_profile() -> dict[str, object]:
-            """Get your LinkedIn profile via opt-in read-only browser mode."""
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Get your own profile from active Chrome session."""
             return await browser.get_my_profile()
 
         @async_tool("browser_readonly")
-        async def get_person_profile(uname: str) -> dict[str, object]:
-            """Get a person's LinkedIn profile via opt-in read-only browser mode."""
+        async def get_person_profile(
+            uname: Annotated[str, Field(description="LinkedIn username or profile vanity slug (e.g. 'williamhgates')")],
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Get a person's profile details via active Chrome session."""
             return await browser.get_person_profile(uname)
 
         @async_tool("browser_readonly")
         async def search_people(
-            kw: str,
-            loc: str = "",
-            co: str = "",
-            limit: int = DEFAULT_LIMIT,
+            kw: Annotated[str, Field(description="People search keywords or name")],
+            loc: Annotated[str, Field(description="Geographic location filter")] = "",
+            co: Annotated[str, Field(description="Current company filter")] = "",
+            limit: Annotated[int, Field(description="Maximum results (default 20)")] = DEFAULT_LIMIT,
         ) -> dict[str, object]:
-            """Search people via opt-in read-only browser mode."""
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Search people via active Chrome browser session."""
             return await browser.search_people(kw=kw, loc=loc, co=co, limit=limit)
 
         @async_tool("browser_readonly")
-        async def get_my_connections(limit: int = 50) -> dict[str, object]:
-            """Get your LinkedIn connections via opt-in read-only browser mode."""
+        async def get_my_connections(
+            limit: Annotated[int, Field(description="Maximum connections to retrieve (default 50)")] = 50,
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Get 1st-degree connections via active Chrome session."""
             return await browser.get_my_connections(limit=limit)
 
         @async_tool("browser_readonly")
-        async def get_inbox(limit: int = DEFAULT_LIMIT) -> dict[str, object]:
-            """Get recent LinkedIn conversations via opt-in read-only browser mode."""
+        async def get_inbox(
+            limit: Annotated[int, Field(description="Maximum messages to retrieve (default 20)")] = DEFAULT_LIMIT,
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read recent LinkedIn message threads via active Chrome session."""
             return await browser.get_inbox(limit=limit)
 
         @async_tool("browser_readonly")
-        async def get_conversation(id: str) -> dict[str, object]:
-            """Read a LinkedIn conversation via opt-in read-only browser mode."""
+        async def get_conversation(
+            id: Annotated[str, Field(description="Conversation thread URN or ID")],
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read messages from a specific conversation thread via active Chrome."""
             return await browser.get_conversation(id)
 
         @async_tool("browser_readonly")
-        async def get_feed(limit: int = 5) -> dict[str, object]:
-            """Get LinkedIn home feed via opt-in read-only browser mode."""
+        async def get_feed(
+            limit: Annotated[int, Field(description="Number of feed posts to read (default 5)")] = 5,
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read LinkedIn home feed posts via active Chrome session."""
             return await browser.get_feed(limit=limit)
 
         @async_tool("browser_readonly")
-        async def get_notifications(limit: int = DEFAULT_LIMIT) -> dict[str, object]:
-            """Get LinkedIn notifications via opt-in read-only browser mode."""
+        async def get_notifications(
+            limit: Annotated[int, Field(description="Maximum notifications to read (default 20)")] = DEFAULT_LIMIT,
+        ) -> dict[str, object]:
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read recent notifications via active Chrome session."""
             return await browser.get_notifications(limit=limit)
 
         @async_tool("browser_readonly")
         async def get_sidebar_profiles() -> dict[str, object]:
-            """Get sidebar profile suggestions via opt-in read-only browser mode."""
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read sidebar profile suggestions via active Chrome session."""
             return await browser.get_sidebar_profiles()
 
         @async_tool("browser_readonly")
         async def get_company_employees(
-            co: str,
-            kw: str = "",
-            limit: int = 25,
+            co: Annotated[str, Field(description="Company name or slug")],
+            kw: Annotated[str, Field(description="Role keyword filter (optional)")] = "",
+            limit: Annotated[int, Field(description="Maximum employees to retrieve (default 25)")] = 25,
         ) -> dict[str, object]:
-            """Get company employees via opt-in read-only browser mode."""
+            """[OPT-IN BROWSER: READ-ONLY ACCOUNT RISK] Read company employee directory via active Chrome session."""
             return await browser.get_company_employees(co=co, kw=kw, limit=limit)
 
         @async_tool("browser_readonly")
         async def check_session() -> dict[str, object]:
-            """Check CDP browser and LinkedIn session readiness."""
+            """Check CDP browser and LinkedIn session readiness and risk status."""
             return await browser.check_session()
 
     @async_tool("system")
@@ -538,8 +640,11 @@ For each job found:
 
     # --- Week 2-4 MCP Sampling & Elicitation Tools ---
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def smart_match_jobs(resume_id: int, ctx: Context | None = None) -> dict[str, object]:
-        """AI-powered job matching using the client's LLM for reasoning."""
+    async def smart_match_jobs(
+        resume_id: Annotated[int, Field(description="Internal integer ID of saved candidate resume in local database")],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
+        """AI-powered job matching using the client's LLM for deep reasoning and fit explanation."""
         resume = storage.get_resume(resume_id)
         if not resume:
             return {"error": "resume_not_found", "id": resume_id}
@@ -565,8 +670,12 @@ Return a concise summary with match scores."""
         return {"analysis": analysis, "jobs_analyzed": len(jobs)}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def generate_cover_letter(job_id: str, resume_id: int, ctx: Context | None = None) -> dict[str, object]:
-        """Generate a tailored cover letter using the client's LLM."""
+    async def generate_cover_letter(
+        job_id: Annotated[str, Field(description="LinkedIn numerical job ID (e.g. '4481120122') or job URL")],
+        resume_id: Annotated[int, Field(description="Internal integer ID of candidate resume")],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
+        """Generate a tailored, compelling cover letter (max 200 words) using the client's LLM."""
         job = await public.get_job_details(job_id)
         resume = storage.get_resume(resume_id)
         if not resume:
@@ -588,7 +697,10 @@ Experience: {str(resume.get("summary") or "")[:300]}"""
         return {"cover_letter": cover_letter}
 
     @app.tool(annotations=READ_ONLY_ANNOTATIONS)
-    async def analyze_salary_offer(job_id: str, ctx: Context | None = None) -> dict[str, object]:
+    async def analyze_salary_offer(
+        job_id: Annotated[str, Field(description="LinkedIn numerical job ID (e.g. '4481120122')")],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
         """AI-powered salary analysis using real market data and client's LLM."""
         job = await public.get_job_details(job_id)
         trends = {}
@@ -608,8 +720,11 @@ Market data context: {json.dumps(trends)}"""
         return {"job_id": job_id, "analysis": analysis}
 
     @async_tool("interactive", annotations=READ_ONLY_ANNOTATIONS)
-    async def personalized_job_hunt(kw: str, ctx: Context) -> dict[str, object]:
-        """Interactive job search that asks you what matters most."""
+    async def personalized_job_hunt(
+        kw: Annotated[str, Field(description="Initial job search keyword or role")],
+        ctx: Context,
+    ) -> dict[str, object]:
+        """Interactive job search that asks you what matters most via MCP elicitation."""
         result = await ctx.elicit(
             message="Customize your job search preferences:",
             response_type=cast(Any, SearchPreferences),
@@ -667,8 +782,12 @@ Market data context: {json.dumps(trends)}"""
         return {"jobs": filtered[:10], "prefs_applied": prefs.model_dump()}
 
     @async_tool("interactive", annotations=WRITE_ANNOTATIONS)
-    async def confirm_export(ids: list[str], fmt: str, ctx: Context) -> dict[str, object]:
-        """Export jobs with user confirmation."""
+    async def confirm_export(
+        ids: Annotated[list[str], Field(description="List of LinkedIn job IDs to export")],
+        fmt: Annotated[str, Field(description="Export format ('csv', 'json', or 'xlsx')")],
+        ctx: Context,
+    ) -> dict[str, object]:
+        """Export jobs with interactive user confirmation dialog."""
         result = await ctx.elicit(
             message=f"Are you sure you want to export {len(ids)} jobs in {fmt} format?",
             response_type=cast(Any, ConfirmExportPreferences),
@@ -682,7 +801,10 @@ Market data context: {json.dumps(trends)}"""
         return await matching.export_jobs(ids, fmt)
 
     @async_tool("local", annotations=READ_ONLY_ANNOTATIONS)
-    async def get_resume_insights_advanced(id: int, ctx: Context | None = None) -> dict[str, object]:
+    async def get_resume_insights_advanced(
+        id: Annotated[int, Field(description="Internal integer ID of candidate resume")],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
         """Get advanced AI-powered insights on a resume using LLM reasoning."""
         resume_data = storage.get_resume(id)
         if not resume_data:
@@ -707,8 +829,14 @@ Provide:
         return {"id": id, "insights": analysis}
 
     @async_tool("public_no_login", annotations=READ_ONLY_ANNOTATIONS)
-    async def deep_industry_analysis(industry: str, ctx: Context | None = None) -> dict[str, object]:
-        """Full industry analysis with progress updates."""
+    async def deep_industry_analysis(
+        industry: Annotated[
+            str,
+            Field(description="Industry vertical name (e.g. 'Artificial Intelligence', 'Fintech', 'Semiconductors')"),
+        ],
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
+        """Full industry analysis with real-time progress updates across active job postings."""
         jobs = await public.search_jobs(kw=industry, limit=10)
 
         analyzed = []

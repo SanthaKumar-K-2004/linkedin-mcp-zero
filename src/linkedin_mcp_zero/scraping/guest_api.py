@@ -87,12 +87,16 @@ class GuestAPIClient:
     ) -> list[dict[str, object]]:
         self.circuit_breaker.check()
         limit = max(1, min(limit, MAX_LIMIT))
+        search_kw = kw
+        if company and not company.isdigit() and company.lower() not in kw.lower():
+            search_kw = f"{kw} {company}".strip() if kw else company
+
         params: dict[str, Any] = {
-            "keywords": kw,
+            "keywords": search_kw,
             "location": loc,
             "start": 0,
         }
-        if company:
+        if company and company.isdigit():
             params["f_C"] = company
         if job_type:
             params["f_JT"] = _job_type_code(job_type)
@@ -106,9 +110,13 @@ class GuestAPIClient:
             params["sortBy"] = "DD"
 
         rows: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
         session = await self._get_session()
+        norm_co = company.strip().lower() if company else ""
 
-        for start in range(0, limit, 25):
+        # Fetch up to 3 pages if company filtering requires more candidates to meet limit
+        max_pages = min(limit * 3 if norm_co else limit, MAX_LIMIT)
+        for start in range(0, max_pages, 25):
             params["start"] = start
 
             async def _make_request() -> Any:
@@ -132,9 +140,36 @@ class GuestAPIClient:
 
             response = await _make_request()
             parsed = parse_search_results(response.text)
-            rows.extend(parsed)
-            if len(parsed) == 0 or len(rows) >= limit:
+            if not parsed:
                 break
+
+            for r in parsed:
+                jid = str(r.get("id") or "")
+                if jid and jid in seen_ids:
+                    continue
+                if norm_co:
+                    r_co = str(r.get("co") or "").lower()
+                    r_t = str(r.get("t") or "").lower()
+                    if norm_co not in r_co and norm_co not in r_t:
+                        continue
+                if jid:
+                    seen_ids.add(jid)
+                rows.append(r)
+                if len(rows) >= limit:
+                    break
+
+            if len(rows) >= limit:
+                break
+
+        # Calculate keyword relevance score for sorting
+        if kw:
+            kw_tokens = [w.lower() for w in re.findall(r"\w+", kw) if len(w) > 2]
+            for r in rows:
+                t_tokens = set(re.findall(r"\w+", str(r.get("t", "")).lower()))
+                if kw_tokens:
+                    matches = sum(1 for w in kw_tokens if w in t_tokens)
+                    r["relevance"] = round((matches / len(kw_tokens)) * 100)
+
         return rows[:limit]
 
     @trace_span("guest_api.get_job_details")
@@ -189,21 +224,49 @@ def extract_job_id(value: str) -> str:
 
 def parse_search_results(html: str, now: datetime | None = None) -> list[dict[str, object]]:
     parser = HTMLParser(html)
-    cards = parser.css(".base-card, .job-search-card")
+    cards = parser.css(".base-card")
+    if not cards:
+        cards = parser.css(".job-search-card")
+    if not cards:
+        cards = parser.css("li")
+
     results: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+
     for card in cards:
+        link = card.css_first("a.base-card__full-link, a[href*='/jobs/view/']")
+        url = clean_text(link.attributes.get("href", "") if link else "")
+        job_id = extract_job_id(url) if url else ""
+        if not job_id:
+            urn = card.attributes.get("data-entity-urn", "")
+            if "urn:li:jobPosting:" in urn:
+                job_id = urn.split(":")[-1]
+
+        # Prevent duplicate jobs in same search result
+        if job_id and job_id in seen_ids:
+            continue
+        if job_id:
+            seen_ids.add(job_id)
+
         title = clean_text(_first_text(card, [".base-search-card__title", ".job-search-card__title", "h3"]))
         company = clean_text(_first_text(card, [".base-search-card__subtitle", ".job-search-card__subtitle", "h4"]))
         location = compact_location(
             _first_text(card, [".job-search-card__location", ".base-search-card__metadata", "span"])
         )
-        link = card.css_first("a.base-card__full-link, a[href*='/jobs/view/']")
-        url = clean_text(link.attributes.get("href", "") if link else "")
-        job_id = extract_job_id(url) if url else ""
-        posted = ""
+
+        posted_iso = ""
+        posted_raw = ""
         time_tag = card.css_first("time")
         if time_tag:
-            posted = time_tag.attributes.get("datetime") or time_tag.text()
+            posted_iso = clean_text(time_tag.attributes.get("datetime", ""))
+            posted_raw = posted_iso or time_tag.text().strip()
+
+        # Extract benefits (e.g. 'Actively Hiring', 'Easy Apply')
+        benefits = clean_text(_first_text(card, [".job-posting-benefits__text", ".result-benefits__text"]))
+
+        # Extract salary if present on the search card
+        sal = clean_text(_first_text(card, [".job-search-card__salary-info", ".salary"]))
+
         results.append(
             compact_dict(
                 {
@@ -211,8 +274,13 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
                     "t": title,
                     "co": company,
                     "loc": location,
-                    "url": url.split("?")[0] if url else "",
-                    "age": relative_age(posted, now),
+                    "url": url.split("?")[0]
+                    if url
+                    else (f"https://www.linkedin.com/jobs/view/{job_id}" if job_id else ""),
+                    "posted": posted_iso[:10] if posted_iso else "",
+                    "age": relative_age(posted_raw, now),
+                    "benefits": benefits,
+                    "sal": sal,
                 }
             )
         )
@@ -234,6 +302,8 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
     employment = schema.get("employmentType")
     posted = str(schema.get("datePosted") or "")
     skills = _extract_skills(clean_text(desc))
+    applicants = clean_text(_first_text(parser, [".num-applicants__caption", ".num-applicants__figure"]))
+
     return compact_dict(
         {
             "id": job_id,
@@ -244,6 +314,7 @@ def parse_job_detail(html: str, job_id: str) -> dict[str, object]:
             "type": _employment_type(employment),
             "posted": posted[:10],
             "age": relative_age(posted),
+            "applicants": applicants,
             "skills": skills[:12],
             "desc": truncate(desc, 900),
             "url": f"https://www.linkedin.com/jobs/view/{job_id}",

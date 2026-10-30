@@ -11,16 +11,16 @@
 [![Python Version](https://img.shields.io/badge/Python-3.10%20%7C%203.11%20%7C%203.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![FastMCP 2.0](https://img.shields.io/badge/FastMCP-2.0%20Native-00F0FF?style=flat-square&logo=fastapi&logoColor=black)](https://modelcontextprotocol.io/)
 [![Transports](https://img.shields.io/badge/Transports-Stdio%20%7C%20Streamable--HTTP-8B5CF6?style=flat-square&logo=databricks&logoColor=white)](https://modelcontextprotocol.io/)
-[![Tests Passing](https://img.shields.io/badge/Tests-119%20Passed-10B981?style=flat-square&logo=pytest&logoColor=white)](tests/)
+[![Tests Passing](https://img.shields.io/badge/Tests-125%20Passed-10B981?style=flat-square&logo=pytest&logoColor=white)](tests/)
 [![Security Audit](https://img.shields.io/badge/Security-Bandit%20Passed-10B981?style=flat-square&logo=shield&logoColor=white)](https://bandit.readthedocs.io/)
-[![Zero Login](https://img.shields.io/badge/Zero--Login-32%20Public%20Tools-success?style=flat-square&logo=linkedin&logoColor=white)](#tools)
+[![Zero Login](https://img.shields.io/badge/Zero--Login-33%20Default%20Tools-success?style=flat-square&logo=linkedin&logoColor=white)](#tools)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 
 <br/>
 
 **A high-performance, public-first Model Context Protocol (MCP) server for real-time LinkedIn talent intelligence, hybrid semantic RAG matching, ghost-job viability scoring, dynamic skill graphs, and privacy-first resume analysis.**
 
-*Zero Login Required · Zero Mock Data · 45 Production Tools · FastMCP 2.0 Native · Dual Stdio/HTTP Transports*
+*Zero Login Required (33 Default Public/Local Tools) · 45 Catalog Tools · FastMCP 2.0 Native · Dual Stdio/HTTP Transports*
 
 <br/>
 
@@ -313,7 +313,14 @@ LinkedIn MCP Zero provides **45 synchronized production tools** organized into d
 </details>
 
 <details>
-<summary><h3>🌐 6. Opt-In Authenticated Browser CDP Suite (11 Tools — Read-Only CDP)</h3></summary>
+<summary><h3>🌐 6. Opt-In Authenticated Browser CDP Suite (11 Tools — Account Risk Notice)</h3></summary>
+
+> [!WARNING]
+> **⚠️ Account Risk & Platform Policy Disclosure**:
+> Unlike the 33 default tools which use public TLS impersonation with **zero credentials and zero account risk**, these 11 browser tools interact directly with an active, logged-in Chrome browser session via Chrome DevTools Protocol (`--remote-debugging-port=9222`) or Patchright.
+> - **Platform Risk**: Programmatic scraping of authenticated LinkedIn sessions violates LinkedIn's User Agreement. Over-use or automated scanning may trigger CAPTCHA checkpoints or account restrictions.
+> - **Best Practice**: If you choose to enable browser mode with `--enable-browser`, **use a secondary or test account**, keep request rates conservative, and never run bulk automation on your primary personal account.
+> - **Stay Zero-Risk**: For job hunting, salary benchmarking, ATS resume tailoring, and talent research, the **33 default public/local tools provide 100% of the capability with zero account risk**.
 
 *Requires Chrome with remote debugging (`google-chrome --remote-debugging-port=9222`) and `--with-extra browser`.*
 
@@ -481,7 +488,7 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ## 📊 Feature Comparison Matrix <a id="benchmarks"></a>
 
-| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.4** |
+| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.5** |
 | :--- | :---: | :---: | :---: |
 | **Total Synchronized Tools** | ~10 tools | 2–5 tools | **✅ 45 Production Tools** |
 | **Zero-Login Public Search** | ❌ None (Requires credentials) | ⚠️ 0–2 tools | **✅ 33 Working Tools (No Login)** |
@@ -572,11 +579,13 @@ LINKEDIN_MCP_API_KEY="your-secret-api-key" uvx linkedin-mcp-zero \
 LinkedIn MCP Zero is architected around **strict defense-in-depth principles**:
 
 1. **Zero-Login by Default**: 33 of 45 tools require **no authentication, no credentials, and no cookies**. Your account cannot be banned or restricted because it is never used.
-2. **Spreadsheet Formula Injection Neutralization**: All CSV/XLSX export routines prefix any cell starting with `=`, `+`, `-`, `@`, or tab characters with `'` to mitigate CVE-style CSV macro execution.
-3. **SSRF Domain Protection**: Internal browser scrapers strictly enforce LinkedIn and recognized multi-board hostname validation to prevent unauthorized network pivot attempts.
-4. **Cryptographic Randomness**: All jitter delays, user-agent rotations, and temporary identifiers use Python's cryptographically secure `secrets` module instead of predictable pseudo-random seeds.
-5. **Single-Flight Request Coalescing**: Duplicate parallel requests for the same LinkedIn job or company URL are coalesced into a single flight, preventing thundering-herd rate limiting.
-6. **RFC 6585 Rate Limiting**: Intelligent sliding-window rate limiters emit standard `Retry-After: 60` headers and thread-safe circuit breakers when upstream rate limits are approached.
+2. **Privacy-First Local Resume Parsing**: PDF, DOCX, and text resume extraction (`analyze_resume`, `match_jobs_to_resume`) runs completely in local memory on your device using native parsers. Candidate PII, resumes, and contacts are **never sent to external analytics or telemetry services**.
+3. **Transparent Client LLM Reasoning**: Qualitative reasoning tools (`tailor_resume`, `smart_match_jobs`, `generate_cover_letter`, `get_resume_insights_advanced`) pass parsed candidate details strictly to your configured AI client (Claude, Cursor, Gemini, or local Ollama) as part of your prompt context. You retain 100% control over the prompt context.
+4. **Spreadsheet Formula Injection Neutralization**: All CSV/XLSX export routines prefix any cell starting with `=`, `+`, `-`, `@`, or tab characters with `'` to mitigate CVE-style CSV macro execution.
+5. **SSRF Domain Protection**: Internal browser scrapers strictly enforce LinkedIn and recognized multi-board hostname validation to prevent unauthorized network pivot attempts.
+6. **Cryptographic Randomness**: All jitter delays, user-agent rotations, and temporary identifiers use Python's cryptographically secure `secrets` module instead of predictable pseudo-random seeds.
+7. **Single-Flight Request Coalescing**: Duplicate parallel requests for the same LinkedIn job or company URL are coalesced into a single flight, preventing thundering-herd rate limiting.
+8. **RFC 6585 Rate Limiting**: Intelligent sliding-window rate limiters emit standard `Retry-After: 60` headers and thread-safe circuit breakers when upstream rate limits are approached.
 
 ---
 
@@ -590,7 +599,7 @@ cd linkedin-mcp-zero
 # Install with development extras
 uv sync --extra dev
 
-# Run comprehensive test suite (119 unit tests)
+# Run comprehensive test suite (125 unit tests)
 uv run pytest tests/ -v
 
 # Code quality and formatting checks
