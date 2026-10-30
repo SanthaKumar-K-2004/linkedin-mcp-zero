@@ -480,7 +480,7 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ## 📊 Feature Comparison Matrix <a id="benchmarks"></a>
 
-| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.1** |
+| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.2** |
 | :--- | :---: | :---: | :---: |
 | **Total Synchronized Tools** | ~10 tools | 2–5 tools | **✅ 44 Production Tools** |
 | **Zero-Login Public Search** | ❌ None (Requires credentials) | ⚠️ 0–2 tools | **✅ 32 Working Tools (No Login)** |

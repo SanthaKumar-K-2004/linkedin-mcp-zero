@@ -484,7 +484,7 @@ def test_version_consistency_and_catalog_synchronization() -> None:
     import linkedin_mcp_zero
     from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 
-    assert linkedin_mcp_zero.__version__ == "0.4.1"
+    assert linkedin_mcp_zero.__version__ == "0.4.2"
     assert len(TOOLS) == 44
     assert tool_help("dia")["name"] == "deep_industry_analysis"
 

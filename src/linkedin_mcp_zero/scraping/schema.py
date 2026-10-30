@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 
-from selectolax.parser import HTMLParser
+try:
+    from selectolax.lexbor import LexborHTMLParser as HTMLParser
+except (ImportError, AttributeError):
+    try:
+        from selectolax.parser import HTMLParser
+    except (ImportError, AttributeError):
+        HTMLParser = None  # type: ignore[assignment]
 
 
 def extract_json_ld(html: str) -> list[dict[str, object]]:

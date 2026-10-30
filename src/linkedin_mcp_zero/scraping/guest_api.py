@@ -10,9 +10,12 @@ import structlog
 from curl_cffi.requests import AsyncSession
 
 try:
-    from selectolax.parser import HTMLParser
+    from selectolax.lexbor import LexborHTMLParser as HTMLParser
 except (ImportError, AttributeError):
-    from selectolax.lexbor import LexborHTMLParser as HTMLParser  # type: ignore
+    try:
+        from selectolax.parser import HTMLParser
+    except (ImportError, AttributeError):
+        HTMLParser = None  # type: ignore[assignment]
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
 from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
