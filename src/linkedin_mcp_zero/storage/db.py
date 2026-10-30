@@ -12,6 +12,12 @@ from platformdirs import user_data_dir
 
 from linkedin_mcp_zero.config.defaults import DATA_DIR_NAME
 from linkedin_mcp_zero.config.settings import Settings
+from linkedin_mcp_zero.config.skills import (
+    alias_keys,
+    canonicalize_skill,
+    curated_neighbors,
+    skill_category,
+)
 
 
 class Storage:
@@ -101,32 +107,21 @@ class Storage:
                 os.chmod(self.db_path, 0o600)
 
     def record_skill_cooccurrences(self, skills: list[str]) -> None:
-        """Dynamically learn real-time skill relationships from actual scraped jobs and real resumes."""
-        cleaned = list({s.strip().lower() for s in skills if isinstance(s, str) and len(s.strip()) > 1})
+        """Learn skill relationships from real jobs/resumes (batched in one transaction, capped at 40 skills)."""
+        cleaned = sorted({s.strip().lower() for s in skills if isinstance(s, str) and len(s.strip()) > 1})[:40]
         if len(cleaned) < 2:
             return
+        pairs = [(a, b) for i, a in enumerate(cleaned) for b in cleaned[i + 1 :]]
+        rows = [(x, y) for a, b in pairs for x, y in ((a, b), (b, a))]
         with self._connect() as conn:
-            for i, s1 in enumerate(cleaned):
-                for s2 in cleaned[i + 1 :]:
-                    if s1 != s2:
-                        conn.execute(
-                            """
-                            INSERT INTO skill_graph(source_skill, target_skill, relation, weight)
-                            VALUES (?, ?, 'co_occurs_with', 1.0)
-                            ON CONFLICT(source_skill, target_skill) DO UPDATE SET
-                                weight = weight + 1.0
-                            """,
-                            (s1, s2),
-                        )
-                        conn.execute(
-                            """
-                            INSERT INTO skill_graph(source_skill, target_skill, relation, weight)
-                            VALUES (?, ?, 'co_occurs_with', 1.0)
-                            ON CONFLICT(source_skill, target_skill) DO UPDATE SET
-                                weight = weight + 1.0
-                            """,
-                            (s2, s1),
-                        )
+            conn.executemany(
+                """
+                INSERT INTO skill_graph(source_skill, target_skill, relation, weight)
+                VALUES (?, ?, 'co_occurs_with', 1.0)
+                ON CONFLICT(source_skill, target_skill) DO UPDATE SET weight = weight + 1.0
+                """,
+                rows,
+            )
 
     def save_resume(self, path: str, data: dict[str, Any]) -> int:
         skills = data.get("skills", [])
@@ -198,7 +193,8 @@ class Storage:
         skills: str = "",
     ) -> None:
         if skills:
-            parsed_skills = [s.strip() for s in skills.split() if s.strip()]
+            sep = "," if "," in skills else None
+            parsed_skills = [s.strip() for s in skills.split(sep) if s.strip()]
             if len(parsed_skills) >= 2:
                 self.record_skill_cooccurrences(parsed_skills)
         with self._connect() as conn:
@@ -229,45 +225,92 @@ class Storage:
             except Exception:
                 return []
 
-    def expand_skills(self, skills: list[str]) -> dict[str, list[str]]:
-        """Expand candidate skills into related concepts and technologies via skill graph."""
+    def _neighbors(self, conn: sqlite3.Connection, key: str) -> list[sqlite3.Row]:
+        keys = sorted(alias_keys(key))
+        marks = ",".join("?" for _ in keys)
+        return conn.execute(
+            f"""
+            SELECT skill, MAX(weight) AS weight, GROUP_CONCAT(DISTINCT relation) AS relation FROM (
+                SELECT target_skill AS skill, relation, weight FROM skill_graph WHERE source_skill IN ({marks})
+                UNION ALL
+                SELECT source_skill AS skill, relation, weight FROM skill_graph WHERE target_skill IN ({marks})
+            )
+            WHERE skill != ?
+            GROUP BY skill
+            ORDER BY weight DESC, skill
+            """,  # nosec B608
+            (*keys, *keys, key),
+        ).fetchall()
+
+    def expand_skills(self, skills: list[str], include_curated: bool = False) -> dict[str, list[str]]:
+        """Related skills per input skill. Learned graph by default; ``include_curated`` adds taxonomy relations."""
         res: dict[str, list[str]] = {}
         with self._connect() as conn:
             for skill in skills:
                 if not skill or not isinstance(skill, str):
                     continue
-                normalized = skill.lower().strip()
-                rows = conn.execute(
-                    "SELECT target_skill FROM skill_graph WHERE source_skill = ?",
-                    (normalized,),
-                ).fetchall()
-                if rows:
-                    res[skill] = [row["target_skill"] for row in rows]
-                else:
-                    rev_rows = conn.execute(
-                        "SELECT source_skill FROM skill_graph WHERE target_skill = ?",
-                        (normalized,),
-                    ).fetchall()
-                    if rev_rows:
-                        res[skill] = [row["source_skill"] for row in rev_rows]
+                related = [row["skill"] for row in self._neighbors(conn, skill.lower().strip())]
+                if include_curated:
+                    related += [n for n in curated_neighbors(skill) if n not in related]
+                if related:
+                    res[skill] = related
         return res
 
-    def get_skill_cluster(self, skill: str) -> dict[str, Any]:
-        """Return the cluster of related technologies and capabilities for a skill."""
+    def get_skill_cluster(self, skill: str, top: int = 15) -> dict[str, Any]:
+        """Ranked related skills: curated taxonomy + learned co-occurrence, alias-aware, with 2-hop adjacency."""
         if not skill or not isinstance(skill, str):
-            return {"skill": str(skill or ""), "direct_connections": [], "related_from": [], "total_connections": 0}
-        normalized = skill.lower().strip()
+            return {
+                "skill": str(skill or ""),
+                "direct_connections": [],
+                "related_from": [],
+                "total_connections": 0,
+            }
+        canonical = canonicalize_skill(skill)
+        key = skill.lower().strip()
+        keys = sorted(alias_keys(key))
+        marks = ",".join("?" for _ in keys)
         with self._connect() as conn:
             direct = conn.execute(
-                "SELECT target_skill, relation, weight FROM skill_graph WHERE source_skill = ?",
-                (normalized,),
+                f"SELECT target_skill, relation, weight FROM skill_graph WHERE source_skill IN ({marks}) "  # nosec B608
+                "ORDER BY weight DESC",
+                tuple(keys),
             ).fetchall()
             reverse = conn.execute(
-                "SELECT source_skill, relation, weight FROM skill_graph WHERE target_skill = ?",
-                (normalized,),
+                f"SELECT source_skill, relation, weight FROM skill_graph WHERE target_skill IN ({marks}) "  # nosec B608
+                "ORDER BY weight DESC",
+                tuple(keys),
             ).fetchall()
+            own = alias_keys(key)
+            learned = {r["skill"]: float(r["weight"]) for r in self._neighbors(conn, key) if r["skill"] not in own}
+            curated = curated_neighbors(canonical)
+            merged: dict[str, dict[str, Any]] = {}
+            for name, weight in learned.items():
+                merged[name.lower()] = {"skill": name, "weight": weight, "source": "learned"}
+            for name, weight in curated.items():
+                hit = merged.get(name.lower())
+                if hit:
+                    hit["weight"] += weight
+                    hit["source"] = "both"
+                else:
+                    merged[name.lower()] = {"skill": name, "weight": weight, "source": "curated"}
+            first_hop = sorted(merged.values(), key=lambda r: (-r["weight"], r["skill"].lower()))
+            seen = {key, canonical.lower(), *merged}
+            second: dict[str, float] = {}
+            for hop in first_hop[:8]:
+                for n, w in curated_neighbors(hop["skill"]).items():
+                    if n.lower() not in seen:
+                        second[n] = max(second.get(n, 0.0), min(hop["weight"], w) * 0.5)
+        ranked = [{**r, "category": skill_category(r["skill"])} for r in first_hop[:top]]
+        adjacent = [
+            {"skill": k, "category": skill_category(k), "weight": round(w, 2)}
+            for k, w in sorted(second.items(), key=lambda kv: -kv[1])[:top]
+        ]
         return {
             "skill": skill,
+            "canonical": canonical,
+            "category": skill_category(canonical),
+            "ranked_related": ranked,
+            "adjacent_2hop": adjacent,
             "direct_connections": [dict(r) for r in direct],
             "related_from": [dict(r) for r in reverse],
             "total_connections": len(direct) + len(reverse),

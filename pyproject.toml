@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "linkedin-mcp-zero"
-version = "0.4.5"
+version = "0.4.6"
 description = "Token-optimized, public-first LinkedIn jobs MCP server."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ authors = [{ name = "Santhakumar K" }]
 dependencies = [
   "beautifulsoup4>=4.12",
   "curl-cffi>=0.15.0",
-  "fastmcp>=2.0",
+  "fastmcp>=2.0,<5",
   "httpx>=0.28",
   "lxml>=5.3",
   "platformdirs>=4.3",

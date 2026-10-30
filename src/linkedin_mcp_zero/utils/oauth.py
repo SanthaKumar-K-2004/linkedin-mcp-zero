@@ -42,7 +42,7 @@ class OAuthMiddleware:
 
     async def _validate_token(self, token: str) -> bool:
         if not self.settings or not self.settings.oauth_server_url:
-            return True  # Bypass introspection if OAuth URL is not configured
+            return False  # Fail closed: never accept tokens we cannot verify
 
         try:
             client = await self._get_client()
@@ -80,13 +80,12 @@ class OAuthMiddleware:
                 return
 
             headers = dict(scope.get("headers", []))
-            auth = headers.get(b"authorization", b"").decode("utf-8")
+            auth = headers.get(b"authorization", b"").decode("utf-8", errors="replace")
 
-            if auth.startswith("Bearer "):
-                token = auth[7:]
-                valid = await self._validate_token(token)
-                if not valid:
-                    await self._send_401(send)
-                    return
+            token = auth[7:].strip() if auth.startswith("Bearer ") else ""
+            # Missing, malformed, or unverifiable token => reject (previously requests with no token passed through).
+            if not token or not await self._validate_token(token):
+                await self._send_401(send)
+                return
 
         await self.app(scope, receive, send)

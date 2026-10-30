@@ -782,6 +782,9 @@ def _infer_domain_ecosystem(skills: list[str]) -> set[str]:
     return set(DOMAIN_ECOSYSTEMS.get(domain, DOMAIN_ECOSYSTEMS["backend"]))
 
 
+MAX_RESUME_BYTES = 10 * 1024 * 1024
+
+
 def _get_allowed_resume_dirs(settings: Any) -> list[Path]:
     if settings.allowed_resume_dirs:
         return [Path(d).expanduser().resolve() for d in settings.allowed_resume_dirs]
@@ -858,7 +861,7 @@ class ResumeEngine:
         search_query = " ".join(candidate_skills[:3]) if candidate_skills else "software engineer"
 
         # Expand skills via in-process learned skill graph
-        expanded_skills_map = self.storage.expand_skills(candidate_skills)
+        expanded_skills_map = self.storage.expand_skills(candidate_skills, include_curated=True)
         inferred_skills = {target.lower() for targets in expanded_skills_map.values() for target in targets}
 
         live_skill_counts: dict[str, int] = {}
@@ -1149,6 +1152,12 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
 
     if not file.exists():
         raise FileNotFoundError(f"Resume not found: {path}")
+    # Defense in depth inside the allowed folders: no dotfiles/dot-directories (.ssh, .env, .config ...)
+    # and no oversized files (zip-bomb / memory exhaustion).
+    if any(part.startswith(".") and part not in {".", ".."} for part in file.parts[1:]):
+        raise ValueError("Resume path may not point to hidden files or folders")
+    if file.stat().st_size > MAX_RESUME_BYTES:
+        raise ValueError(f"Resume file too large (limit {MAX_RESUME_BYTES // (1024 * 1024)} MB)")
 
     suffix = file.suffix.lower()
     if suffix in {".txt", ".md"}:

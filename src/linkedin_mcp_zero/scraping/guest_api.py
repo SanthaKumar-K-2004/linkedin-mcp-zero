@@ -3,15 +3,13 @@ from __future__ import annotations
 import asyncio
 import importlib
 import re
-import secrets
 from datetime import datetime
 from typing import Any
 
 import structlog
 from curl_cffi.requests import AsyncSession
-from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
-from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
+from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT, USER_AGENT
 from linkedin_mcp_zero.scraping.schema import extract_json_ld, first_job_posting
 from linkedin_mcp_zero.utils.circuit_breaker import CircuitBreaker
 from linkedin_mcp_zero.utils.compress import (
@@ -38,15 +36,71 @@ except (ImportError, AttributeError):
 
 logger = structlog.get_logger()
 
-USER_AGENTS = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-]
-
 JOB_ID_RE = re.compile(r"(?:jobs/view/|currentJobId=|jobPosting/|[-_])(\d{6,})")
+
+RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+MAX_RETRY_AFTER_SECONDS = 30.0
+
+
+class NotFoundError(UpstreamError):
+    """Raised for 404/410 so callers do not retry or trip the circuit breaker."""
+
+
+def _retry_after_seconds(response: Any, default: float) -> float:
+    try:
+        raw = response.headers.get("Retry-After", "")
+        return max(0.0, min(float(raw), MAX_RETRY_AFTER_SECONDS)) if raw else default
+    except (TypeError, ValueError, AttributeError):
+        return default
+
+
+async def polite_get(client: GuestAPIClient, url: str, params: dict[str, Any] | None = None) -> Any:
+    """GET with polite retries: only 429/5xx are retried, Retry-After is honored, 4xx fails fast."""
+    session = await client._get_session()
+    last_status = 0
+    for attempt in range(3):
+        response = await (session.get(url, params=params) if params is not None else session.get(url))
+        status = int(response.status_code)
+        if status < 400:
+            client.circuit_breaker.record_success()
+            return response
+        last_status = status
+        if status in (404, 410):
+            raise NotFoundError(f"LinkedIn resource not found: HTTP {status}")
+        if status not in RETRYABLE_STATUS:
+            client.circuit_breaker.record_failure()
+            raise UpstreamError(f"LinkedIn request rejected: HTTP {status}")
+        client.circuit_breaker.record_failure()
+        if attempt < 2:
+            await asyncio.sleep(_retry_after_seconds(response, min(2.0 * (2**attempt), 10.0)))
+    raise UpstreamError(f"LinkedIn request failed after retries: HTTP {last_status}")
+
+
+def _is_company_id(value: str) -> bool:
+    return bool(value) and value.strip().isdigit()
+
+
+_STOP = {"and", "or", "the", "a", "an", "of", "for", "in", "at", "to", "with"}
+
+
+def _tokens(text: str) -> set[str]:
+    return {t for t in re.findall(r"[a-z0-9+#.]+", text.lower()) if t not in _STOP and len(t) > 1}
+
+
+def rank_by_title_relevance(rows: list[dict[str, object]], kw: str) -> list[dict[str, object]]:
+    """Stable re-rank: jobs whose title shares more query words come first. Never drops rows."""
+    query = _tokens(kw)
+    if not query or len(rows) < 2:
+        return rows
+
+    def score(row: dict[str, object]) -> float:
+        title = _tokens(str(row.get("t", "")))
+        if not title:
+            return 0.0
+        overlap = len(query & title) / len(query)
+        return overlap
+
+    return sorted(rows, key=lambda r: -score(r))
 
 
 class GuestAPIClient:
@@ -58,10 +112,9 @@ class GuestAPIClient:
 
     async def _get_session(self) -> AsyncSession[Any]:
         if self._session is None:
-            ua = secrets.choice(USER_AGENTS)
             self._session = AsyncSession(
                 impersonate="chrome124",
-                headers={"User-Agent": ua, "Accept-Language": "en-US,en;q=0.9"},
+                headers={"User-Agent": USER_AGENT, "Accept-Language": "en-US,en;q=0.9"},
                 timeout=self.timeout,
             )
         return self._session
@@ -88,16 +141,19 @@ class GuestAPIClient:
         self.circuit_breaker.check()
         limit = max(1, min(limit, MAX_LIMIT))
         search_kw = kw
-        if company and not company.isdigit() and company.lower() not in kw.lower():
-            search_kw = f"{kw} {company}".strip() if kw else company
+        if company:
+            if _is_company_id(company):
+                pass
+            elif company.lower() not in kw.lower():
+                search_kw = f"{kw} {company}".strip() if kw else company
 
         params: dict[str, Any] = {
             "keywords": search_kw,
             "location": loc,
             "start": 0,
         }
-        if company and company.isdigit():
-            params["f_C"] = company
+        if company and _is_company_id(company):
+            params["f_C"] = company.strip()
         if job_type:
             params["f_JT"] = _job_type_code(job_type)
         if exp:
@@ -111,49 +167,27 @@ class GuestAPIClient:
 
         rows: list[dict[str, object]] = []
         seen_ids: set[str] = set()
-        session = await self._get_session()
-        norm_co = company.strip().lower() if company else ""
+        want_company = "" if _is_company_id(company) else company.strip().lower()
+        target = min(limit * 3, MAX_LIMIT * 2) if want_company else limit
 
-        # Fetch up to 3 pages if company filtering requires more candidates to meet limit
-        max_pages = min(limit * 3 if norm_co else limit, MAX_LIMIT)
-        for start in range(0, max_pages, 25):
+        for start in range(0, target, 25):
             params["start"] = start
-
-            async def _make_request() -> Any:
-                async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(3),
-                    wait=wait_exponential(multiplier=1, min=2, max=10),
-                    reraise=True,
-                ):
-                    with attempt:
-                        response = await session.get(
-                            f"{GUEST_API_BASE}/seeMoreJobPostings/search",
-                            params=params,
-                        )
-                        if response.status_code >= 400:
-                            new_ua = secrets.choice(USER_AGENTS)
-                            session.headers["User-Agent"] = new_ua
-                            self.circuit_breaker.record_failure()
-                            raise UpstreamError(f"LinkedIn guest search failed: HTTP {response.status_code}")
-                        self.circuit_breaker.record_success()
-                        return response
-
-            response = await _make_request()
+            response = await polite_get(self, f"{GUEST_API_BASE}/seeMoreJobPostings/search", params)
             parsed = parse_search_results(response.text)
             if not parsed:
                 break
 
             for r in parsed:
                 jid = str(r.get("id") or "")
-                if jid and jid in seen_ids:
+                key = jid or f"{r.get('t')}|{r.get('co')}|{r.get('loc')}"
+                if key in seen_ids:
                     continue
-                if norm_co:
+                if want_company:
                     r_co = str(r.get("co") or "").lower()
                     r_t = str(r.get("t") or "").lower()
-                    if norm_co not in r_co and norm_co not in r_t:
+                    if want_company not in r_co and want_company not in r_t:
                         continue
-                if jid:
-                    seen_ids.add(jid)
+                seen_ids.add(key)
                 rows.append(r)
                 if len(rows) >= limit:
                     break
@@ -161,7 +195,7 @@ class GuestAPIClient:
             if len(rows) >= limit:
                 break
 
-        # Calculate keyword relevance score for sorting
+        # Calculate keyword relevance percentage score
         if kw:
             kw_tokens = [w.lower() for w in re.findall(r"\w+", kw) if len(w) > 2]
             for r in rows:
@@ -170,7 +204,7 @@ class GuestAPIClient:
                     matches = sum(1 for w in kw_tokens if w in t_tokens)
                     r["relevance"] = round((matches / len(kw_tokens)) * 100)
 
-        return rows[:limit]
+        return rank_by_title_relevance(rows, kw)[:limit]
 
     @trace_span("guest_api.get_job_details")
     async def get_job_details(self, job_id_or_url: str) -> dict[str, object]:
@@ -184,25 +218,7 @@ class GuestAPIClient:
         self._in_flight[job_id] = future
 
         try:
-            session = await self._get_session()
-
-            async def _make_request() -> Any:
-                async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(3),
-                    wait=wait_exponential(multiplier=1, min=2, max=10),
-                    reraise=True,
-                ):
-                    with attempt:
-                        response = await session.get(f"{GUEST_API_BASE}/jobPosting/{job_id}")
-                        if response.status_code >= 400:
-                            new_ua = secrets.choice(USER_AGENTS)
-                            session.headers["User-Agent"] = new_ua
-                            self.circuit_breaker.record_failure()
-                            raise UpstreamError(f"LinkedIn guest job details failed: HTTP {response.status_code}")
-                        self.circuit_breaker.record_success()
-                        return response
-
-            response = await _make_request()
+            response = await polite_get(self, f"{GUEST_API_BASE}/jobPosting/{job_id}")
             result = parse_job_detail(response.text, job_id)
             future.set_result(result)
             return result

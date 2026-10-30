@@ -1,8 +1,18 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
+from functools import lru_cache
+from typing import Any
 
-COMMON_SKILLS: list[str] = [
+from linkedin_mcp_zero.config.skill_taxonomy import (
+    ALIAS_TO_CANON,
+    AMBIGUOUS,
+    SEED_EDGES,
+    TAXONOMY,
+)
+
+_LEGACY_SKILLS: list[str] = [
     # Core Languages
     "Python",
     "JavaScript",
@@ -311,18 +321,164 @@ COMMON_SKILLS: list[str] = [
 ]
 
 
+_known = {s.lower() for s in _LEGACY_SKILLS}
+COMMON_SKILLS: list[str] = _LEGACY_SKILLS + [name for name in TAXONOMY if name.lower() not in _known]
+
+# Legacy names that are really aliases of a canonical taxonomy skill.
+for _legacy in _LEGACY_SKILLS:
+    ALIAS_TO_CANON.setdefault(_legacy.lower(), _legacy)
+
+_AMBIGUOUS_LOWER = {a.lower() for a in AMBIGUOUS}
+_DELIMS = set(",;/|:()[]\u2022\u00b7-\u2013\n\t")
+_BEFORE = r"(?<![A-Za-z0-9_+#])"
+_AFTER = r"(?![A-Za-z0-9_+#])"
+
+
+def canonicalize_skill(skill: str) -> str:
+    """Map any alias/spelling (k8s, postgres, golang, google cloud) to its canonical skill name."""
+    key = re.sub(r"\s+", " ", (skill or "").strip()).lower()
+    return ALIAS_TO_CANON.get(key, (skill or "").strip())
+
+
+def skill_category(skill: str) -> str:
+    info = TAXONOMY.get(canonicalize_skill(skill))
+    return str(info["category"]) if info else "general"
+
+
+@lru_cache(maxsize=4)
+def _compile(terms: tuple[str, ...]) -> re.Pattern[str]:
+    ordered = sorted(terms, key=len, reverse=True)
+    body = "|".join(re.escape(t) for t in ordered)
+    return re.compile(f"{_BEFORE}(?P<t>{body}){_AFTER}", re.IGNORECASE)
+
+
+def _context_ok(text: str, start: int, end: int) -> bool:
+    left = text[:start].rstrip(" ")
+    right = text[end:].lstrip(" ")
+    before = left[-1:] if left else "\n"
+    after = right[:1] if right else "\n"
+    return before in _DELIMS or after in _DELIMS
+
+
 def extract_skills_from_text(text: str, skills: list[str] | None = None) -> list[str]:
-    """Extract recognized technical skills using punctuation/whitespace-boundary regex matching."""
-    target_skills = skills or COMMON_SKILLS
+    """Extract canonical skills in order of first appearance.
+
+    Uses one compiled regex (fast), resolves aliases (k8s -> Kubernetes), and guards ambiguous
+    short terms (C, R, Go, AI ...) so ordinary words do not become skills.
+    """
+    if not text:
+        return []
+    custom = skills is not None and skills is not COMMON_SKILLS
+    if custom:
+        mapping = {s.lower(): s for s in (skills or [])}
+    else:
+        mapping = {**{n.lower(): n for n in COMMON_SKILLS}, **ALIAS_TO_CANON}
+    if not mapping:
+        return []
+    pattern = _compile(tuple(sorted(mapping)))
+
     found: list[str] = []
-    seen_lower: set[str] = set()
+    seen: set[str] = set()
+    deferred: list[tuple[str, str]] = []
+    for match in pattern.finditer(text):
+        raw = match.group("t")
+        low = raw.lower()
+        canon = mapping[low]
+        if not custom and low in _AMBIGUOUS_LOWER:
+            exact_ok = raw in AMBIGUOUS or raw == canon
+            if not exact_ok:
+                continue
+            if not _context_ok(text, match.start(), match.end()):
+                deferred.append((canon, raw))
+                continue
+        if canon.lower() not in seen:
+            seen.add(canon.lower())
+            found.append(canon)
 
-    for skill in target_skills:
-        pattern = rf"(?:(?<=[\s,;.!?:()/\\\[\]'\"])|^){re.escape(skill)}(?=[\s,;.!?:()/\\\[\]'\"]|$)"
-        if re.search(pattern, text, re.IGNORECASE):
-            sk_lower = skill.lower()
-            if sk_lower not in seen_lower:
-                seen_lower.add(sk_lower)
-                found.append(skill)
-
+    # Ambiguous terms without list-style context count only if a same-category skill corroborates them.
+    cats = {skill_category(f) for f in found}
+    for canon, _raw in deferred:
+        if canon.lower() not in seen and skill_category(canon) in cats and skill_category(canon) != "general":
+            seen.add(canon.lower())
+            found.append(canon)
     return found
+
+
+def seed_relations() -> list[tuple[str, str, str, float]]:
+    """(source, target, relation, weight) edges from the taxonomy, mirrored both ways."""
+    edges: dict[tuple[str, str], float] = {}
+    for a, b in SEED_EDGES:
+        ca, cb = canonicalize_skill(a).lower(), canonicalize_skill(b).lower()
+        if ca and cb and ca != cb:
+            edges[(ca, cb)] = 3.0
+            edges[(cb, ca)] = 3.0
+    return [(a, b, "related_to", w) for (a, b), w in edges.items()]
+
+
+def skill_gap(candidate: list[str], required: list[str], related: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    """Compare candidate vs required skills with alias + adjacency credit.
+
+    matched     - same canonical skill
+    transferable- missing, but candidate has a closely related skill (fast to learn)
+    missing     - nothing close on the resume
+    """
+    cand = {canonicalize_skill(s).lower(): canonicalize_skill(s) for s in candidate if s}
+    req = list(dict.fromkeys(canonicalize_skill(s) for s in required if s))
+    neighbors: dict[str, set[str]] = defaultdict(set)
+    for src, targets in (related or {}).items():
+        for t in targets:
+            neighbors[canonicalize_skill(src).lower()].add(canonicalize_skill(t).lower())
+            neighbors[canonicalize_skill(t).lower()].add(canonicalize_skill(src).lower())
+    matched: list[str] = []
+    transferable: list[dict[str, str]] = []
+    missing: list[str] = []
+    for r in req:
+        key = r.lower()
+        if key in cand:
+            matched.append(r)
+            continue
+        close = next((cand[n] for n in neighbors.get(key, ()) if n in cand), None)
+        if close:
+            transferable.append({"need": r, "have": close})
+        else:
+            missing.append(r)
+    score = (len(matched) + 0.5 * len(transferable)) / len(req) if req else 0.0
+    return {
+        "score": round(score, 2),
+        "matched": matched,
+        "transferable": transferable,
+        "missing": missing,
+    }
+
+
+@lru_cache(maxsize=1)
+def _curated_graph() -> dict[str, dict[str, float]]:
+    graph: dict[str, dict[str, float]] = defaultdict(dict)
+    for a, b, _rel, w in seed_relations():
+        graph[a][b] = w
+    return graph
+
+
+def curated_neighbors(skill: str) -> dict[str, float]:
+    """Taxonomy relations for a skill (alias-aware), as {display_name: weight}. Works with zero learned data."""
+    graph = _curated_graph()
+    out: dict[str, float] = {}
+    for key in alias_keys(skill):
+        for neighbor, weight in graph.get(key, {}).items():
+            out[_display(neighbor)] = max(out.get(_display(neighbor), 0.0), weight)
+    return out
+
+
+def _display(lower_name: str) -> str:
+    return ALIAS_TO_CANON.get(lower_name, lower_name)
+
+
+def alias_keys(skill: str) -> set[str]:
+    """All lowercase spellings of a skill: itself, its canonical name and every known alias."""
+    low = (skill or "").strip().lower()
+    canon = canonicalize_skill(skill)
+    keys = {low, canon.lower()}
+    info = TAXONOMY.get(canon)
+    if info:
+        keys.update(str(a).lower() for a in info["aliases"])  # type: ignore[attr-defined]
+    return {k for k in keys if k}

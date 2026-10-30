@@ -145,7 +145,7 @@ async def test_dynamic_match_reasoning_in_matching_engine(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_voyager_engine_live_request_dispatch() -> None:
     """Verify that VoyagerEngine builds authentic live requests with li_at cookie and headers."""
-    settings = Settings(enable_voyager=True, li_at="AQEDAtestcookie123")
+    settings = Settings(enable_voyager=True, li_at="AQEDAtestcookie123", safe_mode=False)
     engine = VoyagerEngine(settings)
 
     mock_resp = MagicMock()

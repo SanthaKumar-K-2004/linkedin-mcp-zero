@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from linkedin_mcp_zero.config.defaults import CACHE_TTL_SECONDS
@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     timeout_seconds: float = 15
     cache_ttl_seconds: int = CACHE_TTL_SECONDS
     enable_voyager: bool = False
-    api_key: str | None = Field(default=None, validation_alias=AliasChoices("LINKEDIN_MCP_API_KEY", "API_KEY"))
+    api_key: str | None = Field(
+        default=None, repr=False, validation_alias=AliasChoices("LINKEDIN_MCP_API_KEY", "API_KEY")
+    )
     http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY")
     https_proxy: str | None = Field(default=None, validation_alias="HTTPS_PROXY")
     data_dir: str | None = None
@@ -30,12 +32,15 @@ class Settings(BaseSettings):
     browser_idle_seconds: int = 300
     enable_browser: bool = False
     enable_patchright_fallback: bool = False
+    # Safe mode (default): never use a logged-in LinkedIn account (browser session, li_at cookie,
+    # private Voyager API, stealth browser fallback). This is what keeps the server ban-proof.
+    safe_mode: bool = Field(default=True, validation_alias=AliasChoices("LINKEDIN_MCP_SAFE_MODE", "safe_mode"))
     browser_user_data_dir: str | None = None
     exact_token_count: bool = False
     token_count_model: str = "claude-sonnet-4-5"
-    anthropic_api_key: str | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
-    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
-    li_at: str | None = Field(default=None, validation_alias="LI_AT")
+    anthropic_api_key: str | None = Field(default=None, repr=False, validation_alias="ANTHROPIC_API_KEY")
+    openai_api_key: str | None = Field(default=None, repr=False, validation_alias="OPENAI_API_KEY")
+    li_at: str | None = Field(default=None, repr=False, validation_alias="LI_AT")
     cors_allowed_origins: list[str] = Field(
         default=[
             "http://localhost",
@@ -50,5 +55,14 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = Field(default=60, validation_alias="RATE_LIMIT_PER_MINUTE")
     oauth_metadata_url: str | None = None
     oauth_client_id: str | None = None
-    oauth_client_secret: str | None = None
+    oauth_client_secret: str | None = Field(default=None, repr=False)
     oauth_server_url: str | None = None
+
+    @model_validator(mode="after")
+    def _enforce_safe_mode(self) -> Settings:
+        if self.safe_mode:
+            self.enable_browser = False
+            self.enable_voyager = False
+            self.enable_patchright_fallback = False
+            self.li_at = None
+        return self

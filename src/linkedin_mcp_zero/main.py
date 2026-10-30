@@ -150,7 +150,10 @@ def cli() -> None:
             key_dir = Path(settings.data_dir or user_data_dir(DATA_DIR_NAME))
             key_dir.mkdir(parents=True, exist_ok=True)
             key_file = key_dir / ".http_api_key"
-            key_file.write_text(api_key, encoding="utf-8")
+            # Create with 0600 atomically (write_text + chmod leaves a window where it is world-readable).
+            fd = os.open(key_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(api_key)
             with suppress(Exception):
                 os.chmod(key_file, 0o600)
             console = Console(stderr=True)
@@ -164,12 +167,9 @@ def cli() -> None:
         if "*" in cors_origins:
             allow_creds = False
 
-        # Note on Starlette middleware execution order:
-        # In Starlette, the middleware stack is evaluated in reverse order (bottom-up).
-        # Therefore, incoming requests execute in the following sequence:
-        # 1. APIKeyAndRateLimitMiddleware (validates API key or Bearer token API key)
-        # 2. OAuthMiddleware (validates Bearer token against OAuth 2.1 auth server if enabled)
-        # 3. CORSMiddleware (evaluates CORS headers)
+        # Starlette applies the middleware list top-down: first entry is outermost.
+        # Request order: CORS -> (OAuth, when configured) -> rate limit / API key.
+        use_oauth = bool(settings.oauth_server_url)
         middleware_list = [
             Middleware(
                 CORSMiddleware,
@@ -178,17 +178,18 @@ def cli() -> None:
                 allow_methods=["*"],
                 allow_headers=["*"],
             ),
-            Middleware(
-                OAuthMiddleware,
-                oauth_config=oauth,
-                settings=settings,
-            ),
+        ]
+        if use_oauth:
+            # OAuth mode: tokens are verified by the authorization server (fail-closed); API key not required.
+            middleware_list.append(Middleware(OAuthMiddleware, oauth_config=oauth, settings=settings))
+        middleware_list.append(
             Middleware(
                 APIKeyAndRateLimitMiddleware,
                 api_key=api_key,
                 rate_limit_per_minute=settings.rate_limit_per_minute,
-            ),
-        ]
+                require_api_key=not use_oauth,
+            )
+        )
 
         app.run(
             transport="streamable-http",

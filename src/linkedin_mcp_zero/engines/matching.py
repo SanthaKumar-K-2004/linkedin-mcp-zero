@@ -194,7 +194,7 @@ class MatchingEngine:
         jobs = await self.public.search_jobs(search_kw, loc=loc, limit=limit)
 
         # Expand skills via in-process skill graph
-        expanded_skills_map = self.storage.expand_skills(list(skills))
+        expanded_skills_map = self.storage.expand_skills(list(skills), include_curated=True)
 
         import asyncio
 

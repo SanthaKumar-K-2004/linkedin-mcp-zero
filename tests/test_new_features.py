@@ -124,7 +124,7 @@ async def test_concurrent_compare_and_export(tmp_path: Path) -> None:
 
 @pytest.mark.anyio
 async def test_deep_industry_analysis_progress() -> None:
-    from mcp.server.fastmcp import Context
+    from fastmcp import Context
 
     app = create_app()
 

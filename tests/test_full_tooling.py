@@ -190,7 +190,7 @@ async def test_browser_tools_are_hidden_by_default(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_browser_tools_appear_when_enabled(tmp_path: Path) -> None:
-    app = create_app(Settings(data_dir=str(tmp_path), enable_browser=True))
+    app = create_app(Settings(data_dir=str(tmp_path), enable_browser=True, safe_mode=False))
     tools = await app.list_tools()
     names = {tool.name for tool in tools}
     assert "get_my_profile" in names

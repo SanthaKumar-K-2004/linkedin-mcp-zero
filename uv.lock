@@ -1843,7 +1843,7 @@ wheels = [
 
 [[package]]
 name = "linkedin-mcp-zero"
-version = "0.4.5"
+version = "0.4.6"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1907,7 +1907,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "curl-cffi", specifier = ">=0.15.0" },
     { name = "docling", marker = "extra == 'docling'", specifier = ">=2.110.0" },
-    { name = "fastmcp", specifier = ">=2.0" },
+    { name = "fastmcp", specifier = ">=2.0,<5" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
     { name = "itsdangerous", marker = "extra == 'oauth'", specifier = ">=2.1.2" },

@@ -149,7 +149,8 @@ async def test_middleware_cleanup() -> None:
 
 
 @pytest.mark.asyncio
-async def test_oauth_middleware_bypass_when_no_server_url() -> None:
+async def test_oauth_middleware_fails_closed_when_no_server_url() -> None:
+    """Security: tokens that cannot be verified must be rejected (previously they bypassed validation)."""
     mock_app = AsyncMock()
     mock_settings = MagicMock()
     mock_settings.oauth_server_url = None
@@ -161,11 +162,11 @@ async def test_oauth_middleware_bypass_when_no_server_url() -> None:
         "headers": [(b"authorization", b"Bearer some-token")],
         "path": "/test",
     }
-    receive = AsyncMock()
-    send = MagicMock()
+    send = AsyncMock()
 
-    await middleware(scope, receive, send)
-    mock_app.assert_called_once_with(scope, receive, send)
+    await middleware(scope, AsyncMock(), send)
+    mock_app.assert_not_called()
+    assert send.await_args_list[0].args[0]["status"] == 401
 
 
 @pytest.mark.asyncio
