@@ -206,6 +206,16 @@ def create_app(settings: Settings | None = None) -> FastMCP:
         return await resume.get_resume_insights(id, ctx=ctx)
 
     @async_tool("local")
+    async def tailor_resume(
+        path: str,
+        target_job: str = "",
+        target_role: str = "",
+        ctx: Context | None = None,
+    ) -> dict[str, object]:
+        """Universal multi-role ATS resume tailoring, keyword optimization, and real-time gap analysis."""
+        return await resume.tailor_resume(path, target_job=target_job, target_role=target_role, ctx=ctx)
+
+    @async_tool("local")
     async def match_jobs_to_resume(
         id: int,
         kw: str = "",

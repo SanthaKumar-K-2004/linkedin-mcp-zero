@@ -26,12 +26,13 @@ from linkedin_mcp_zero.storage.db import Storage
 
 
 def test_catalog_tool_count() -> None:
-    assert len(TOOLS) == 44
+    assert len(TOOLS) == 45
     assert tool_help("sj")["name"] == "search_jobs"
     assert tool_help("gus")["name"] == "get_usage_stats"
     assert tool_help("ajv")["name"] == "analyze_job_viability"
     assert tool_help("dia")["name"] == "deep_industry_analysis"
-    assert tool_help()["count"] == 44
+    assert tool_help("tr")["name"] == "tailor_resume"
+    assert tool_help()["count"] == 45
 
 
 def test_storage_alert_roundtrip(tmp_path: Path) -> None:
@@ -183,7 +184,8 @@ async def test_browser_tools_are_hidden_by_default(tmp_path: Path) -> None:
     assert "get_my_profile" not in names
     assert "get_profile_voyager" not in names
     assert "get_usage_stats" in names
-    assert len(tools) == 32
+    assert "tailor_resume" in names
+    assert len(tools) == 33
 
 
 @pytest.mark.asyncio
@@ -306,3 +308,66 @@ def test_streamable_http_auth(tmp_path: Path) -> None:
     # The 3rd request should trigger a 429.
     resp = client.post("/sse", headers={"x-api-key": "my-secret-key"}, json={})
     assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_tailor_resume_multi_role_domains(tmp_path: Path) -> None:
+    """Test universal multi-role resume tailoring across Healthcare and Product Management."""
+    storage = Storage(Settings(data_dir=str(tmp_path)))
+    engine = ResumeEngine(storage)
+
+    # 1. Healthcare / Clinical Nurse test
+    nurse_resume = tmp_path / "nurse.md"
+    nurse_resume.write_text(
+        "# Sarah Jenkins, RN\n"
+        "Email: sarah.jenkins@hospital.org | Phone: +1 555-234-5678\n\n"
+        "## Professional Summary\n"
+        "Dedicated Registered Nurse with 6 years of experience in high-volume emergency triage and patient care.\n\n"
+        "## Clinical Skills\n"
+        "Patient Care, Triage, Phlebotomy, Epic Systems, Electronic Health Records, Vital Signs\n",
+        encoding="utf-8",
+    )
+
+    nurse_res = await engine.tailor_resume(
+        path=str(nurse_resume),
+        target_role="Emergency Room Clinical Nurse Specialist",
+        target_job="Seeking Clinical Nurse Specialist proficient in Patient Care, Triage, Epic Systems, Cerner, and HIPAA Compliance.",
+    )
+
+    assert nurse_res["identified_domain"] == "healthcare_clinical"
+    assert nurse_res["ats_layout_guidance"]["recommended_skills_heading"] == "CLINICAL SKILLS & CERTIFICATIONS"
+    assert "Triaged" in nurse_res["ats_layout_guidance"]["domain_action_verbs"]
+    assert "Patient Care" in nurse_res["skills_analysis"]["matching_skills"]
+    assert (
+        "Cerner" in nurse_res["skills_analysis"]["missing_skills"]
+        or "HIPAA Compliance" in nurse_res["skills_analysis"]["missing_skills"]
+    )
+    assert nurse_res["ats_compatibility_score"] > 0
+    assert "Accomplished [X] as measured by [Y]" in nurse_res["accomplishment_formula"]["benchmark"]
+
+    # 2. Product Management test
+    pm_resume = tmp_path / "pm.md"
+    pm_resume.write_text(
+        "# Alex Rivera\n"
+        "Email: alex.rivera@product.io | Phone: +1 555-876-5432\n\n"
+        "## Summary\n"
+        "Lead Product Manager scaling B2B SaaS platforms from 0 to 1.\n\n"
+        "## Competencies\n"
+        "Product Management, Product Strategy, Agile, Scrum, PRD, User Stories, Jira, A/B Testing\n",
+        encoding="utf-8",
+    )
+
+    pm_res = await engine.tailor_resume(
+        path=str(pm_resume),
+        target_role="Principal Technical Product Manager",
+        target_job="Leading cross-functional agile teams. Must have expertise in Product Strategy, Product Roadmapping, PRD, GTM Strategy, OKRs, and Feature Prioritization.",
+    )
+
+    assert pm_res["identified_domain"] == "product_management"
+    assert pm_res["ats_layout_guidance"]["recommended_skills_heading"] == "PRODUCT & AGILE COMPETENCIES"
+    assert "Spearheaded" in pm_res["ats_layout_guidance"]["domain_action_verbs"]
+    assert "Product Strategy" in pm_res["skills_analysis"]["matching_skills"]
+    assert (
+        "GTM Strategy" in pm_res["skills_analysis"]["missing_skills"]
+        or "OKRs" in pm_res["skills_analysis"]["missing_skills"]
+    )

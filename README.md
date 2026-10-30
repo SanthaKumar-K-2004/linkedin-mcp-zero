@@ -20,13 +20,13 @@
 
 **A high-performance, public-first Model Context Protocol (MCP) server for real-time LinkedIn talent intelligence, hybrid semantic RAG matching, ghost-job viability scoring, dynamic skill graphs, and privacy-first resume analysis.**
 
-*Zero Login Required · Zero Mock Data · 44 Production Tools · FastMCP 2.0 Native · Dual Stdio/HTTP Transports*
+*Zero Login Required · Zero Mock Data · 45 Production Tools · FastMCP 2.0 Native · Dual Stdio/HTTP Transports*
 
 <br/>
 
 [⚡ Quickstart](#quickstart) •
 [🎬 Live Demo](#demo) •
-[🛠️ 44 Tools](#tools) •
+[🛠️ 45 Tools](#tools) •
 [🏗️ Architecture](#architecture) •
 [📊 Benchmarks](#benchmarks) •
 [🚀 Deployment](#deployment) •
@@ -233,11 +233,11 @@ Query: "Staff AI Engineer" in "San Francisco, CA"
 
 ---
 
-## 🛠️ Complete Interactive Tool Matrix (44 Tools) <a id="tools"></a>
+## 🛠️ Complete Interactive Tool Matrix (45 Tools) <a id="tools"></a>
 
-LinkedIn MCP Zero provides **44 synchronized production tools** organized into distinct risk tiers. 
+LinkedIn MCP Zero provides **45 synchronized production tools** organized into distinct risk tiers. 
 
-> **🛡️ Zero-Login Guarantee**: 32 core tools require **zero credentials, zero sessions, and zero browser automation**. Your personal LinkedIn account is never touched and remains 100% protected.
+> **🛡️ Zero-Login Guarantee**: 33 core tools require **zero credentials, zero sessions, and zero browser automation**. Your personal LinkedIn account is never touched and remains 100% protected.
 
 <details open>
 <summary><h3>💼 1. Job Discovery &amp; Deep Search (11 Tools — Public / Zero Login)</h3></summary>
@@ -269,12 +269,13 @@ LinkedIn MCP Zero provides **44 synchronized production tools** organized into d
 </details>
 
 <details>
-<summary><h3>📄 3. Privacy-First Resume &amp; Career Matching (6 Tools — Local Execution)</h3></summary>
+<summary><h3>📄 3. Privacy-First Resume &amp; Career Matching (7 Tools — Local Execution)</h3></summary>
 
 | Tool Name | Alias | Risk Tier | Est. Tokens | Description |
 |:---|:---:|:---:|:---:|:---|
 | [`analyze_resume`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L94) | `ar` | 🔒 Local | ~600 | Parse local PDF, DOCX, or text resume into structured skills, experience, and education |
 | [`get_resume_insights`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L102) | `gri` | 🔒 Local | ~500 | Identify candidate skill gaps, missing keywords, and strategic resume improvements |
+| [`tailor_resume`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L106) | `tr` | 🔒 Local | ~800 | Universal multi-role ATS resume tailoring, keyword optimization, and real-time gap analysis |
 | [`get_resume_insights_advanced`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L333) | `ria` | 🔒 Local | ~800 | Deep resume critique leveraging client LLM reasoning for high-impact tailoring |
 | [`match_jobs_to_resume`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L110) | `mjr` | 🟢 Local/Pub | ~700 | Rank live job postings against candidate resume using Hybrid BM25 + Vector RRF |
 | [`smart_match_jobs`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/catalog.py#L292) | `smj` | 🟢 Local/Pub | ~900 | AI-driven semantic match reasoning providing qualitative candidate-job fit analysis |
@@ -372,7 +373,7 @@ flowchart TD
         direction TB
         
         MW["Security & Rate Limiting Middleware<br/>(RFC 6585 · Single-Flight Coalescer · OAuth 2.1)"]:::server
-        Router{"44-Tool Router"}:::server
+        Router{"45-Tool Router"}:::server
 
         subgraph ScrapeEngine["Live Guest Scraping Engine"]
             CF["curl_cffi Chrome 124 TLS Impersonator"]:::engine
@@ -480,10 +481,10 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ## 📊 Feature Comparison Matrix <a id="benchmarks"></a>
 
-| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.2** |
+| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.3** |
 | :--- | :---: | :---: | :---: |
-| **Total Synchronized Tools** | ~10 tools | 2–5 tools | **✅ 44 Production Tools** |
-| **Zero-Login Public Search** | ❌ None (Requires credentials) | ⚠️ 0–2 tools | **✅ 32 Working Tools (No Login)** |
+| **Total Synchronized Tools** | ~10 tools | 2–5 tools | **✅ 45 Production Tools** |
+| **Zero-Login Public Search** | ❌ None (Requires credentials) | ⚠️ 0–2 tools | **✅ 33 Working Tools (No Login)** |
 | **Data Authenticity** | ⚠️ Static/Cached | ❌ Frequent synthetic mocks | **✅ 100% Real-Time Live Network** |
 | **Ghost Job & Saturation Analysis** | ❌ None | ❌ None | **✅ Algorithmic (`analyze_job_viability`)** |
 | **Dynamic Skill Graph Learning** | ❌ None | ❌ None | **✅ Live SQLite Co-occurrence Learning** |
@@ -538,7 +539,7 @@ curl -f http://localhost:8000/health
 
 LinkedIn MCP Zero is architected around **strict defense-in-depth principles**:
 
-1. **Zero-Login by Default**: 32 of 44 tools require **no authentication, no credentials, and no cookies**. Your account cannot be banned or restricted because it is never used.
+1. **Zero-Login by Default**: 33 of 45 tools require **no authentication, no credentials, and no cookies**. Your account cannot be banned or restricted because it is never used.
 2. **Spreadsheet Formula Injection Neutralization**: All CSV/XLSX export routines prefix any cell starting with `=`, `+`, `-`, `@`, or tab characters with `'` to mitigate CVE-style CSV macro execution.
 3. **SSRF Domain Protection**: Internal browser scrapers strictly enforce LinkedIn and recognized multi-board hostname validation to prevent unauthorized network pivot attempts.
 4. **Cryptographic Randomness**: All jitter delays, user-agent rotations, and temporary identifiers use Python's cryptographically secure `secrets` module instead of predictable pseudo-random seeds.
@@ -581,7 +582,7 @@ uv build
 <details>
 <summary><b>Do I need a LinkedIn username or password to use this?</b></summary>
 <br/>
-<b>No!</b> 32 of the 44 tools are 100% public and zero-login. You never supply an email, password, or session cookie. The server accesses public search and job postings using browser-grade TLS fingerprint impersonation.
+<b>No!</b> 33 of the 45 tools are 100% public and zero-login. You never supply an email, password, or session cookie. The server accesses public search and job postings using browser-grade TLS fingerprint impersonation.
 </details>
 
 <details>

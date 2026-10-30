@@ -106,6 +106,14 @@ TOOLS: list[dict[str, object]] = [
         "desc": "Skill gaps & improvement suggestions",
     },
     {
+        "name": "tailor_resume",
+        "short": "tr",
+        "engine": "RE",
+        "risk": "local_zero_account_risk",
+        "tokens": 800,
+        "desc": "Universal multi-role ATS resume tailoring against jobs",
+    },
+    {
         "name": "match_jobs_to_resume",
         "short": "mjr",
         "engine": "ME",

@@ -484,9 +484,10 @@ def test_version_consistency_and_catalog_synchronization() -> None:
     import linkedin_mcp_zero
     from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 
-    assert linkedin_mcp_zero.__version__ == "0.4.2"
-    assert len(TOOLS) == 44
+    assert linkedin_mcp_zero.__version__ == "0.4.3"
+    assert len(TOOLS) == 45
     assert tool_help("dia")["name"] == "deep_industry_analysis"
+    assert tool_help("tr")["name"] == "tailor_resume"
 
 
 def test_metrics_store_connection_timeout_and_permissions(tmp_path: Path) -> None:
