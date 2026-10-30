@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.7] - client integration & clean packaging
+### Added
+- Native Google Antigravity IDE & agent framework support via `--install-client antigravity`
+- Idempotent PyPI release publishing with `skip-existing: true`
+- Clean production repository packaging, removing internal audit notes and scratch files
+- Dedicated tool integration badges and documentation for Claude, Cursor, VS Code, and Google Antigravity
+
 ## [0.4.6] - hardening release
 ### Fixed (search)
 - `co` company filter was sent as LinkedIn `f_C` (needs a numeric id) so company names were ignored; now filtered client-side, numeric ids still use `f_C`

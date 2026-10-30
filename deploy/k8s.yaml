@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: server
-          image: ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:0.4.6
+          image: ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:0.4.7
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
