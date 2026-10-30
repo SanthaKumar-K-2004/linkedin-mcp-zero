@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import re
 import secrets
 from datetime import datetime
@@ -8,14 +9,6 @@ from typing import Any
 
 import structlog
 from curl_cffi.requests import AsyncSession
-
-try:
-    from selectolax.lexbor import LexborHTMLParser as HTMLParser
-except (ImportError, AttributeError):
-    try:
-        from selectolax.parser import HTMLParser
-    except (ImportError, AttributeError):
-        HTMLParser = None  # type: ignore[assignment]
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential
 
 from linkedin_mcp_zero.config.defaults import DEFAULT_LIMIT, GUEST_API_BASE, MAX_LIMIT
@@ -30,6 +23,18 @@ from linkedin_mcp_zero.utils.compress import (
 )
 from linkedin_mcp_zero.utils.errors import ParseError, UpstreamError
 from linkedin_mcp_zero.utils.telemetry import trace_span
+
+HTMLParser: Any = None
+try:
+    from selectolax.lexbor import LexborHTMLParser
+
+    HTMLParser = LexborHTMLParser
+except (ImportError, AttributeError):
+    try:
+        _mod = importlib.import_module("selectolax.parser")
+        HTMLParser = getattr(_mod, "HTMLParser", None)
+    except Exception:
+        HTMLParser = None
 
 logger = structlog.get_logger()
 

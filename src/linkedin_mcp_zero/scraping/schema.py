@@ -2,14 +2,21 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
+from typing import Any
 
+HTMLParser: Any = None
 try:
-    from selectolax.lexbor import LexborHTMLParser as HTMLParser
+    from selectolax.lexbor import LexborHTMLParser
+
+    HTMLParser = LexborHTMLParser
 except (ImportError, AttributeError):
     try:
-        from selectolax.parser import HTMLParser
-    except (ImportError, AttributeError):
-        HTMLParser = None  # type: ignore[assignment]
+        import importlib
+
+        _mod = importlib.import_module("selectolax.parser")
+        HTMLParser = getattr(_mod, "HTMLParser", None)
+    except Exception:
+        HTMLParser = None
 
 
 def extract_json_ld(html: str) -> list[dict[str, object]]:
