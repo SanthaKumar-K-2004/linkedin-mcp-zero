@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkedin-mcp-zero
+  labels:
+    app.kubernetes.io/name: linkedin-mcp-zero
+    app.kubernetes.io/version: "0.4.3"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: linkedin-mcp-zero
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: linkedin-mcp-zero
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:0.4.4
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: LINKEDIN_MCP_TRANSPORT
+              value: "streamable-http"
+            - name: LINKEDIN_MCP_HOST
+              value: "0.0.0.0"
+            - name: LINKEDIN_MCP_PORT
+              value: "8000"
+            - name: LINKEDIN_MCP_LOG_LEVEL
+              value: "INFO"
+            - name: RATE_LIMIT_PER_MINUTE
+              value: "120"
+            - name: LINKEDIN_MCP_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: linkedin-mcp-secrets
+                  key: api-key
+                  optional: true
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkedin-mcp-zero
+  labels:
+    app.kubernetes.io/name: linkedin-mcp-zero
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      name: http
+  selector:
+    app.kubernetes.io/name: linkedin-mcp-zero

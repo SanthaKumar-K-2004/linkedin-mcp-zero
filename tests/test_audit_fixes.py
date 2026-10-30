@@ -484,7 +484,7 @@ def test_version_consistency_and_catalog_synchronization() -> None:
     import linkedin_mcp_zero
     from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 
-    assert linkedin_mcp_zero.__version__ == "0.4.3"
+    assert linkedin_mcp_zero.__version__ == "0.4.4"
     assert len(TOOLS) == 45
     assert tool_help("dia")["name"] == "deep_industry_analysis"
     assert tool_help("tr")["name"] == "tailor_resume"
@@ -521,3 +521,19 @@ def test_vector_storage_uuid5_upsert_and_fallback(tmp_path: Path) -> None:
     results = store.search([0.9, 0.8, 0.7], limit=1)
     assert len(results) == 1
     assert results[0]["title"] == "Scientist"
+
+
+def test_cloud_hosting_environment_variable_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure standard cloud environment variables (PORT, HOST, API_KEY, TRANSPORT) are honored."""
+    from linkedin_mcp_zero.config.settings import Settings
+
+    monkeypatch.setenv("PORT", "10000")
+    monkeypatch.setenv("HOST", "0.0.0.0")
+    monkeypatch.setenv("API_KEY", "prod-cloud-key-789")
+    monkeypatch.setenv("TRANSPORT", "streamable-http")
+
+    settings = Settings()
+    assert settings.port == 10000
+    assert settings.host == "0.0.0.0"
+    assert settings.api_key == "prod-cloud-key-789"
+    assert settings.transport == "streamable-http"

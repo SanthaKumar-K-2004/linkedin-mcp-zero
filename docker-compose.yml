@@ -1,0 +1,31 @@
+services:
+  linkedin-mcp-zero:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:latest
+    container_name: linkedin-mcp-zero
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - LINKEDIN_MCP_TRANSPORT=streamable-http
+      - LINKEDIN_MCP_HOST=0.0.0.0
+      - LINKEDIN_MCP_PORT=8000
+      - LINKEDIN_MCP_LOG_LEVEL=INFO
+      # Set your secure API key for authenticating remote agents (or leave empty for auto-generated key)
+      - LINKEDIN_MCP_API_KEY=${LINKEDIN_MCP_API_KEY:-secret-production-token}
+      - RATE_LIMIT_PER_MINUTE=120
+      - CORS_ALLOWED_ORIGINS=*
+    volumes:
+      - linkedin_mcp_data:/home/mcp/.local/share/linkedin-mcp-zero
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  linkedin_mcp_data:
+    driver: local

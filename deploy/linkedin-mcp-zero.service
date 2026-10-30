@@ -1,0 +1,23 @@
+[Unit]
+Description=LinkedIn MCP Zero Server (FastMCP Streamable HTTP)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/linkedin-mcp-zero
+Environment="PATH=/home/ubuntu/.cargo/bin:/usr/local/bin:/usr/bin"
+Environment="LINKEDIN_MCP_TRANSPORT=streamable-http"
+Environment="LINKEDIN_MCP_HOST=0.0.0.0"
+Environment="LINKEDIN_MCP_PORT=8000"
+Environment="LINKEDIN_MCP_LOG_LEVEL=INFO"
+Environment="RATE_LIMIT_PER_MINUTE=120"
+# Environment="LINKEDIN_MCP_API_KEY=your-secure-api-key"
+ExecStart=/usr/local/bin/uv run linkedin-mcp-zero --transport streamable-http --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5s
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

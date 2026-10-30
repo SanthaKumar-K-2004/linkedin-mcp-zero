@@ -481,7 +481,7 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ## 📊 Feature Comparison Matrix <a id="benchmarks"></a>
 
-| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.3** |
+| Feature | stickerdaniel (2.3k★) | Standard Scraping MCPs | **LinkedIn MCP Zero v0.4.4** |
 | :--- | :---: | :---: | :---: |
 | **Total Synchronized Tools** | ~10 tools | 2–5 tools | **✅ 45 Production Tools** |
 | **Zero-Login Public Search** | ❌ None (Requires credentials) | ⚠️ 0–2 tools | **✅ 33 Working Tools (No Login)** |
@@ -498,39 +498,71 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ---
 
-## 🚀 Production Deployment & Streamable-HTTP <a id="deployment"></a>
+## 🚀 Production Deployment & Cloud Hosting <a id="deployment"></a>
 
-LinkedIn MCP Zero can be executed locally as a stdio child process or hosted as a cloud service (Docker, AWS, GCP, Fly.io, Kubernetes) via **Streamable HTTP** mode.
+LinkedIn MCP Zero can be executed locally as a stdio child process or hosted online as a production cloud service via **Streamable HTTP** mode.
 
-### Running as an HTTP Server Daemon
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero)
+
+### HTTP / Cloud Endpoints
+- **Service Status & Discovery**: `GET /` (Public JSON status and tool count)
+- **Health & Diagnostic Probe**: `GET /health` (Liveness & readiness probe for cloud balancers)
+- **MCP 2.0 Streaming SSE**: `POST /sse` (Streamable MCP endpoint for remote AI agents)
+- **OAuth 2.1 Discovery**: `GET /.well-known/oauth-protected-resource` (RFC 9728 metadata)
+
+---
+
+### Option A: Docker Compose (Recommended for Self-Hosting & VPS)
+
+Clone the repository and run with Docker Compose:
 
 ```bash
-# Launch server with custom API authentication key
+git clone https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero.git
+cd linkedin-mcp-zero
+
+# Start in background with automatic restart
+docker compose up -d
+
+# Verify health
+curl -f http://localhost:8000/health
+```
+
+---
+
+### Option B: Pre-built Container (GitHub Container Registry)
+
+Run the pre-built, hardened multi-arch image directly:
+
+```bash
+docker run -d -p 8000:8000 \
+  -e LINKEDIN_MCP_API_KEY="your-secure-token" \
+  -e RATE_LIMIT_PER_MINUTE=120 \
+  --name linkedin-mcp-zero \
+  ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:latest
+```
+
+---
+
+### Option C: 1-Click Cloud Hosting (Render, Railway, Fly.io)
+
+| Provider | Quick Deployment Command / Configuration |
+| :--- | :--- |
+| **Render** | Click the **Deploy to Render** button above or use [`render.yaml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/render.yaml) blueprint |
+| **Railway** | Deploy directly using included [`railway.json`](file:///home/santhakumar/Documents/linkedin-mcp-zero/railway.json) config |
+| **Fly.io** | Run `fly launch` using included [`fly.toml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/fly.toml) config |
+| **Kubernetes** | Run `kubectl apply -f deploy/k8s.yaml` for production cluster deployments |
+| **Linux VM** | Install systemd unit via [`deploy/linkedin-mcp-zero.service`](file:///home/santhakumar/Documents/linkedin-mcp-zero/deploy/linkedin-mcp-zero.service) |
+
+---
+
+### Option D: Direct Python / uv Daemon
+
+```bash
+# Launch server daemon listening on all interfaces
 LINKEDIN_MCP_API_KEY="your-secret-api-key" uvx linkedin-mcp-zero \
     --transport streamable-http \
     --host 0.0.0.0 \
     --port 8000
-```
-
-### Endpoints
-- **MCP 2.0 Streaming SSE**: `http://localhost:8000/mcp`
-- **Health & SQLite Diagnostic Probe**: `http://localhost:8000/health`
-- **OAuth 2.1 Protected Resource Metadata**: `http://localhost:8000/.well-known/oauth-protected-resource`
-
-### Docker Deployment
-
-```bash
-# Build the production container
-docker build -t linkedin-mcp-zero .
-
-# Run with custom API Key
-docker run -d -p 8000:8000 \
-  -e LINKEDIN_MCP_API_KEY="your-secure-token" \
-  --name linkedin-mcp \
-  linkedin-mcp-zero
-
-# Verify health
-curl -f http://localhost:8000/health
 ```
 
 ---

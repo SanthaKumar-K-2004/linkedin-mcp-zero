@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from linkedin_mcp_zero.config.defaults import CACHE_TTL_SECONDS
@@ -14,14 +14,14 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    transport: str = "stdio"
-    host: str = "127.0.0.1"
-    port: int = 8000
-    log_level: str = "INFO"
+    transport: str = Field(default="stdio", validation_alias=AliasChoices("LINKEDIN_MCP_TRANSPORT", "TRANSPORT"))
+    host: str = Field(default="127.0.0.1", validation_alias=AliasChoices("LINKEDIN_MCP_HOST", "HOST"))
+    port: int = Field(default=8000, validation_alias=AliasChoices("LINKEDIN_MCP_PORT", "PORT"))
+    log_level: str = Field(default="INFO", validation_alias=AliasChoices("LINKEDIN_MCP_LOG_LEVEL", "LOG_LEVEL"))
     timeout_seconds: float = 15
     cache_ttl_seconds: int = CACHE_TTL_SECONDS
     enable_voyager: bool = False
-    api_key: str | None = Field(default=None, validation_alias="LINKEDIN_MCP_API_KEY")
+    api_key: str | None = Field(default=None, validation_alias=AliasChoices("LINKEDIN_MCP_API_KEY", "API_KEY"))
     http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY")
     https_proxy: str | None = Field(default=None, validation_alias="HTTPS_PROXY")
     data_dir: str | None = None

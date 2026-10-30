@@ -228,3 +228,7 @@ def _print_doctor(runtime: dict[str, object]) -> None:
         'Browser extra fix: uvx --from "linkedin-mcp-zero[browser]" linkedin-mcp-zero --doctor',
         markup=False,
     )
+
+
+if __name__ == "__main__":
+    cli()

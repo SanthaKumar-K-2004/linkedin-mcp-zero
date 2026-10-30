@@ -309,6 +309,17 @@ def test_streamable_http_auth(tmp_path: Path) -> None:
     resp = client.post("/sse", headers={"x-api-key": "my-secret-key"}, json={})
     assert resp.status_code == 429
 
+    # 6. Unauthenticated health and root endpoints bypass API key requirement (200 OK)
+    health_resp = client.get("/health")
+    assert health_resp.status_code == 200
+    assert health_resp.json()["status"] == "ok"
+
+    root_resp = client.get("/")
+    assert root_resp.status_code == 200
+    assert root_resp.json()["service"] == "linkedin-mcp-zero"
+    assert root_resp.json()["status"] == "online"
+    assert root_resp.json()["tools_count"] == 45
+
 
 @pytest.mark.asyncio
 async def test_tailor_resume_multi_role_domains(tmp_path: Path) -> None:

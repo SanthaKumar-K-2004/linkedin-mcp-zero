@@ -74,6 +74,11 @@ class OAuthMiddleware:
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] == "http":
+            path = scope.get("path", "")
+            if path in {"/", "/health", "/healthz", "/ping"} or path.startswith("/.well-known/"):
+                await self.app(scope, receive, send)
+                return
+
             headers = dict(scope.get("headers", []))
             auth = headers.get(b"authorization", b"").decode("utf-8")
 

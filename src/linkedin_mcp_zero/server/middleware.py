@@ -21,8 +21,14 @@ class APIKeyAndRateLimitMiddleware:
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
         if scope["type"] == "http":
             method = scope.get("method", "GET")
+            path = scope.get("path", "")
             # Fast-path OPTIONS requests (CORS preflight is handled by CORSMiddleware)
             if method == "OPTIONS":
+                await self.app(scope, receive, send)
+                return
+
+            # Public unauthenticated routes: root status, health checks & OAuth discovery
+            if path in {"/", "/health", "/healthz", "/ping"} or path.startswith("/.well-known/"):
                 await self.app(scope, receive, send)
                 return
 

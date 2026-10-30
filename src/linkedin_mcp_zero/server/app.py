@@ -735,6 +735,27 @@ Provide:
     from starlette.requests import Request
     from starlette.responses import JSONResponse
 
+    @app.custom_route("/", methods=["GET"])
+    async def root_status(request: Request) -> JSONResponse:
+        """Root status and discovery endpoint for public cloud inspection."""
+        from linkedin_mcp_zero import __version__
+
+        return JSONResponse(
+            {
+                "service": "linkedin-mcp-zero",
+                "version": __version__,
+                "status": "online",
+                "tools_count": len(TOOLS),
+                "transport": "streamable-http",
+                "endpoints": {
+                    "mcp_sse": "/sse",
+                    "health": "/health",
+                    "oauth_discovery": "/.well-known/oauth-protected-resource",
+                    "documentation": "https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero",
+                },
+            }
+        )
+
     @app.custom_route("/health", methods=["GET"])
     async def health(request: Request) -> JSONResponse:
         """Health check endpoint for streamable-http deployment."""
