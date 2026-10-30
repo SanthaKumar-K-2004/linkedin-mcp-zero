@@ -17,15 +17,15 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 # Set working directory
 WORKDIR /app
 
-# Copy configuration and lock files
-COPY pyproject.toml uv.lock ./
+# Copy configuration and project metadata (README required by hatchling)
+COPY pyproject.toml uv.lock README.md ./
 
 # Install project dependencies (excluding developer extras)
 RUN uv sync --frozen --no-dev
 
-# Copy source code and tests
+# Copy source code and assets
 COPY src/ ./src/
-COPY README.md ./
+COPY assets/ ./assets/
 
 # Re-install the package to ensure entry points are registered
 RUN uv pip install -e .

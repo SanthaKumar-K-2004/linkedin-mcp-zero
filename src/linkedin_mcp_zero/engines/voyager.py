@@ -13,9 +13,9 @@ logger = structlog.get_logger()
 class VoyagerEngine:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._session: AsyncSession | None = None
+        self._session: AsyncSession | None = None  # type: ignore[type-arg]
 
-    async def _get_session(self) -> AsyncSession:
+    async def _get_session(self) -> AsyncSession:  # type: ignore[type-arg]
         if self._session is None:
             self._session = AsyncSession(impersonate="chrome124", timeout=self.settings.timeout_seconds)
         return self._session

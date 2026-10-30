@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     timeout_seconds: float = 15
     cache_ttl_seconds: int = CACHE_TTL_SECONDS
     enable_voyager: bool = False
+    api_key: str | None = Field(default=None, validation_alias="LINKEDIN_MCP_API_KEY")
     http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY")
     https_proxy: str | None = Field(default=None, validation_alias="HTTPS_PROXY")
     data_dir: str | None = None
