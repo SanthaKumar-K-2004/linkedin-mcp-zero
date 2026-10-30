@@ -345,6 +345,14 @@ LinkedIn MCP Zero provides **44 synchronized production tools** organized into d
 
 ## 🏗️ System Flow & Hybrid RAG Architecture <a id="architecture"></a>
 
+<div align="center">
+  <img src="assets/mcp_flow.jpg" alt="LinkedIn MCP Zero End-to-End System Flow Architecture" width="100%" />
+</div>
+
+<br/>
+
+### 1. High-Level System Flow
+
 ```mermaid
 flowchart TD
     classDef client fill:#1e1e38,stroke:#8B5CF6,stroke-width:2px,color:#fff;
@@ -405,6 +413,68 @@ flowchart TD
     RESUME --> DSG
     FTS & VEC --> RRF
 ```
+
+---
+
+### 2. End-to-End Execution Sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as AI Client (Claude / Cursor / Agent)
+    participant MW as Security Middleware & Coalescer
+    participant FastMCP as FastMCP 2.0 Router
+    participant Engine as Live Scraping Engine (curl_cffi)
+    participant Web as LinkedIn Public Gateway
+    participant SQLite as SQLite FTS5 & Skill Graph
+    participant RRF as Hybrid RRF Ranker
+
+    User->>MW: Call tool: search_jobs("Staff AI Engineer", "SF")
+    MW->>FastMCP: Deduplicated Request Passed (Single-Flight Protected)
+    FastMCP->>Engine: Dispatch Scraping Task
+    Engine->>Web: TLS Chrome 124 Impersonated GET Request
+    Web-->>Engine: 200 OK (Live HTML & JSON-LD Postings)
+    Engine->>SQLite: Index Postings into FTS5 & Learn Skill Co-occurrences
+    FastMCP->>RRF: Query FTS5 BM25 + Vector Similarity
+    RRF-->>FastMCP: Reciprocal Rank Fused Scores (k=60)
+    FastMCP-->>User: Structured Clean JSON Payload (<600 tokens)
+```
+
+---
+
+### 3. Concrete Architectural Implementation Layers
+
+LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsystems**:
+
+#### Layer 1: Unified Transport & Gateway
+- **Implementation**: [`src/linkedin_mcp_zero/server/app.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/app.py) & [`src/linkedin_mcp_zero/server/middleware.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/server/middleware.py)
+- **FastMCP 2.0 Native**: Supports both local process IPC (`stdio`) for desktop AI clients and asynchronous network daemon (`streamable-http`) for cloud containers.
+- **Security Middleware**: Sliding-window rate limiting emitting RFC 6585 `Retry-After: 60` headers, token verification, and OAuth 2.1 metadata endpoint.
+
+#### Layer 2: Zero-Login Scraping & Impersonation Engine
+- **Implementation**: [`src/linkedin_mcp_zero/engines/public_api.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/engines/public_api.py) & [`src/linkedin_mcp_zero/engines/multi_board.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/engines/multi_board.py)
+- **Browser-Grade TLS**: Uses `curl_cffi` targeting public LinkedIn guest endpoints (`/jobs-guest/jobs/api/seeMoreJobPostings/search`) with Chrome 124 JA3/JA4 TLS fingerprinting.
+- **Single-Flight Coalescing**: Duplicate parallel requests for identical queries share the same in-flight task to eliminate thundering herds and IP rate limits.
+- **Anti-Fingerprinting**: Cryptographic randomness via Python `secrets` for headers, User-Agent rotations, and network jitter.
+
+#### Layer 3: Hybrid RAG & Reciprocal Rank Fusion (RRF)
+- **Implementation**: [`src/linkedin_mcp_zero/storage/db.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/storage/db.py) & [`src/linkedin_mcp_zero/storage/vector_db.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/storage/vector_db.py)
+- **SQLite FTS5 Full-Text**: Embedded full-text virtual table with Unicode61 Porter tokenization delivering instant BM25 lexical rank.
+- **Dense Cosine Vectors**: Lightweight in-process vector store computing semantic embedding similarity.
+- **RRF Score Fusion**: Fuses lexical BM25 and dense semantic scores using Reciprocal Rank Fusion ($k=60$):
+  $$\text{Score}_{\text{RRF}}(d) = \sum_{m \in \{\text{BM25}, \text{Vector}\}} \frac{1}{60 + \text{Rank}_m(d)}$$
+
+#### Layer 4: Real-Time Dynamic Skill Graph
+- **Implementation**: [`src/linkedin_mcp_zero/config/skills.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/config/skills.py) & [`src/linkedin_mcp_zero/storage/db.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/storage/db.py)
+- **Continuous In-Process Learning**: 200+ canonical technical skill nodes. When live postings or candidate resumes are analyzed, co-occurring technologies dynamically update edge weights in SQLite:
+  $$\text{Weight}_{A \leftrightarrow B} \leftarrow \text{Weight}_{A \leftrightarrow B} + 1.0$$
+- Allows instant query expansion and technology ecosystem exploration via `expand_skill_cluster`.
+
+#### Layer 5: Decision Intelligence & Viability Scoring
+- **Implementation**: [`src/linkedin_mcp_zero/engines/matching.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/engines/matching.py) & [`src/linkedin_mcp_zero/engines/resume.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/engines/resume.py)
+- **Ghost-Job Viability Engine** (`analyze_job_viability`): Algorithmic detection evaluating posting age, applicant pool volume, repost frequencies, and hiring velocity.
+- **Local In-Memory Resume Parsing**: Extracts structured skills, experience, and education from PDF, DOCX, and TXT with zero cloud data transmission.
+- **Model-Agnostic LLM Bridge** ([`src/linkedin_mcp_zero/utils/llm.py`](file:///home/santhakumar/Documents/linkedin-mcp-zero/src/linkedin_mcp_zero/utils/llm.py)): Supports client-side sampling (Claude, Cursor, Gemini) with optional direct OpenAI and Anthropic provider execution.
 
 ---
 
