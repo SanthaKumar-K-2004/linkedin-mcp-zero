@@ -150,36 +150,75 @@ No tool posts, likes, connects, follows, applies, or sends messages.
 `search_jobs_multi` works in default mode by falling back to LinkedIn-only
 results. Install `--with-extra multi` for all 5 job boards.
 
-## Docker Deployment (Engine 1)
+## Cloud Hosting & Docker Deployment
 
-You can build and run Engine 1 as a Docker container:
+### 1. Pre-built Multi-Arch Container (GitHub Container Registry)
+
+Run the pre-built, hardened multi-arch image directly:
+
+```bash
+docker run -d -p 8000:8000 \
+  -e LINKEDIN_MCP_API_KEY="my-secret-key" \
+  -e RATE_LIMIT_PER_MINUTE=120 \
+  --name linkedin-mcp-zero \
+  ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:latest
+```
+
+### 2. Build Container Locally
 
 ```bash
 # Build the Docker image
 docker build -t linkedin-mcp-zero .
 
-# Run the container exposing port 8000 in HTTP mode
+# Run container in Streamable HTTP mode
 docker run -d -p 8000:8000 \
   -e LINKEDIN_MCP_API_KEY="my-secret-key" \
-  -e LINKEDIN_MCP_RATE_LIMIT="100/minute" \
+  -e RATE_LIMIT_PER_MINUTE=120 \
   linkedin-mcp-zero
 ```
 
-## Streamable-HTTP & REST API Usage
+### 3. 1-Click Online Cloud Hosting
 
-When running in `streamable-http` mode, the server implements standard Starlette CORS headers and an ASGI API-Key/Rate-limiting middleware:
+| Platform | Deployment Instructions |
+| :--- | :--- |
+| **Render** | Connect repository and select Docker runtime, or use [`render.yaml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/render.yaml) blueprint |
+| **Railway** | Deploy with Railway CLI: `railway up` using [`railway.json`](file:///home/santhakumar/Documents/linkedin-mcp-zero/railway.json) |
+| **Fly.io** | Deploy with Fly CLI: `fly launch` / `fly deploy` using [`fly.toml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/fly.toml) |
+| **Kubernetes** | Deploy cluster manifest: `kubectl apply -f deploy/k8s.yaml` |
+
+## Streamable-HTTP, SSE & Remote AI Client Setup
+
+When running in `streamable-http` mode, the server implements standard Starlette CORS headers, health checks at `/health`, and ASGI API-Key/Rate-limiting middleware:
 
 *   **Authorization Header:** Requests must include `Authorization: Bearer <api-key>` or an `x-api-key: <api-key>` header.
-*   **Rate Limiting:** Defaults to 100 requests per minute per IP, returning `HTTP 429 Too Many Requests` on violation.
-*   **CORS:** Origins can be restricted by configuring the `cors_allowed_origins` parameter in the environment.
+*   **Rate Limiting:** Defaults to 120 requests per minute per IP, returning `HTTP 429 Too Many Requests` on violation.
+*   **CORS:** Origins can be restricted by configuring `CORS_ALLOWED_ORIGINS` in the environment.
 
-Example request using `curl`:
+### Remote MCP Client Configuration (Claude Desktop, Cursor, Antigravity, VS Code)
+
+Connect your remote AI client to your hosted instance (`https://your-service.onrender.com`):
+
+```json
+{
+  "mcpServers": {
+    "linkedin-remote": {
+      "url": "https://your-service.onrender.com/sse",
+      "headers": {
+        "x-api-key": "my-secret-key"
+      }
+    }
+  }
+}
+```
+
+### Remote Health and Probe Verification
 
 ```bash
-curl -X POST http://localhost:8000/mcp/v1/tools/search_jobs \
-  -H "Authorization: Bearer my-secret-key" \
-  -H "Content-Type: application/json" \
-  -d '{"kw": "python", "limit": 5}'
+# Verify service health
+curl -f https://your-service.onrender.com/health
+
+# Verify tools discovery
+curl -H "x-api-key: my-secret-key" https://your-service.onrender.com/
 ```
 
 ## Advanced MCP Spec Primitives

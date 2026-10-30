@@ -551,39 +551,52 @@ LinkedIn MCP Zero is structured into **5 decoupled, production-hardened subsyste
 
 ## 🚀 Production Deployment & Cloud Hosting <a id="deployment"></a>
 
-LinkedIn MCP Zero can be executed locally as a stdio child process or hosted online as a production cloud service via **Streamable HTTP** mode.
+LinkedIn MCP Zero can be executed locally as a stdio child process or hosted online as a high-performance cloud service via **Streamable HTTP / SSE** mode.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero)
+<p align="center">
+  <a href="https://render.com/deploy?repo=https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero">
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="38" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://railway.app/template?template=https%3A%2F%2Fgithub.com%2FSanthaKumar-K-2004%2Flinkedin-mcp-zero">
+    <img src="https://railway.app/button.svg" alt="Deploy on Railway" height="38" />
+  </a>
+</p>
 
 ### HTTP / Cloud Endpoints
 - **Service Status & Discovery**: `GET /` (Public JSON status and tool count)
 - **Health & Diagnostic Probe**: `GET /health` (Liveness & readiness probe for cloud balancers)
-- **MCP 2.0 Streaming SSE**: `POST /sse` (Streamable MCP endpoint for remote AI agents)
+- **MCP 2.0 Streaming SSE**: `GET /sse` or `POST /sse` (Streamable MCP endpoint for remote AI agents)
 - **OAuth 2.1 Discovery**: `GET /.well-known/oauth-protected-resource` (RFC 9728 metadata)
 
 ---
 
-### Option A: Docker Compose (Recommended for Self-Hosting & VPS)
+### Cloud Provider Quickstart
 
-Clone the repository and run with Docker Compose:
+#### 1. Render (1-Click or Blueprint)
+Deploy automatically using [`render.yaml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/render.yaml):
+- Click **Deploy to Render** above or connect your GitHub repository in the Render Dashboard.
+- Render automatically provisions the Docker container, configures the `/health` check, and sets an auto-generated `LINKEDIN_MCP_API_KEY`.
 
+#### 2. Railway (1-Command CLI)
+Deploy using the Railway CLI and [`railway.json`](file:///home/santhakumar/Documents/linkedin-mcp-zero/railway.json):
 ```bash
-git clone https://github.com/SanthaKumar-K-2004/linkedin-mcp-zero.git
-cd linkedin-mcp-zero
-
-# Start in background with automatic restart
-docker compose up -d
-
-# Verify health
-curl -f http://localhost:8000/health
+npm i -g @railway/cli
+railway login
+railway init
+railway up
 ```
 
----
+#### 3. Fly.io (Global Edge Deployment)
+Deploy across worldwide regions using [`fly.toml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/fly.toml):
+```bash
+fly launch --no-deploy
+fly secrets set LINKEDIN_MCP_API_KEY="your-secure-key"
+fly deploy
+```
 
-### Option B: Pre-built Container (GitHub Container Registry)
-
+#### 4. Pre-built Docker Container (GitHub Container Registry)
 Run the pre-built, hardened multi-arch image directly:
-
 ```bash
 docker run -d -p 8000:8000 \
   -e LINKEDIN_MCP_API_KEY="your-secure-token" \
@@ -592,28 +605,84 @@ docker run -d -p 8000:8000 \
   ghcr.io/santhakumar-k-2004/linkedin-mcp-zero:latest
 ```
 
----
-
-### Option C: 1-Click Cloud Hosting (Render, Railway, Fly.io)
-
-| Provider | Quick Deployment Command / Configuration |
-| :--- | :--- |
-| **Render** | Click the **Deploy to Render** button above or use [`render.yaml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/render.yaml) blueprint |
-| **Railway** | Deploy directly using included [`railway.json`](file:///home/santhakumar/Documents/linkedin-mcp-zero/railway.json) config |
-| **Fly.io** | Run `fly launch` using included [`fly.toml`](file:///home/santhakumar/Documents/linkedin-mcp-zero/fly.toml) config |
-| **Kubernetes** | Run `kubectl apply -f deploy/k8s.yaml` for production cluster deployments |
-| **Linux VM** | Install systemd unit via [`deploy/linkedin-mcp-zero.service`](file:///home/santhakumar/Documents/linkedin-mcp-zero/deploy/linkedin-mcp-zero.service) |
-
----
-
-### Option D: Direct Python / uv Daemon
-
+#### 5. Kubernetes Cluster
+Deploy to any Kubernetes cluster (GKE, EKS, AKS, or local Minikube/k3s):
 ```bash
-# Launch server daemon listening on all interfaces
-LINKEDIN_MCP_API_KEY="your-secret-api-key" uvx linkedin-mcp-zero \
-    --transport streamable-http \
-    --host 0.0.0.0 \
-    --port 8000
+kubectl apply -f deploy/k8s.yaml
+```
+
+---
+
+### 🌐 Connecting Remote AI Clients to Hosted Server
+
+Once hosted online (e.g. `https://your-service.onrender.com`), connect your favorite AI client using the remote SSE transport:
+
+#### 🖥️ Claude Desktop (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "linkedin-remote": {
+      "url": "https://your-service.onrender.com/sse",
+      "headers": {
+        "x-api-key": "your-secure-token"
+      }
+    }
+  }
+}
+```
+
+#### ⚡ Cursor IDE (`.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "linkedin-remote": {
+      "url": "https://your-service.onrender.com/sse",
+      "headers": {
+        "x-api-key": "your-secure-token"
+      }
+    }
+  }
+}
+```
+
+#### 🔮 Google Antigravity IDE (`.agents/mcp_config.json`)
+```json
+{
+  "mcpServers": {
+    "linkedin-remote": {
+      "url": "https://your-service.onrender.com/sse",
+      "headers": {
+        "x-api-key": "your-secure-token"
+      }
+    }
+  }
+}
+```
+
+#### 📝 VS Code
+```json
+{
+  "servers": {
+    "linkedin-remote": {
+      "url": "https://your-service.onrender.com/sse",
+      "headers": {
+        "x-api-key": "your-secure-token"
+      }
+    }
+  }
+}
+```
+
+---
+
+### 🔍 Verification & Health Checking
+Verify your remote deployment is live and healthy:
+```bash
+# Liveness probe
+curl -f https://your-service.onrender.com/health
+
+# Discovery endpoint
+curl -H "x-api-key: your-secure-token" https://your-service.onrender.com/
 ```
 
 ---

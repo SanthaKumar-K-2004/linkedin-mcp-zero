@@ -7,6 +7,14 @@ services:
     envVars:
       - key: PORT
         value: 8000
+      - key: LINKEDIN_MCP_TRANSPORT
+        value: streamable-http
+      - key: LINKEDIN_MCP_HOST
+        value: 0.0.0.0
+      - key: LINKEDIN_MCP_LOG_LEVEL
+        value: INFO
+      - key: RATE_LIMIT_PER_MINUTE
+        value: 120
       - key: LINKEDIN_MCP_API_KEY
         generateValue: true
     healthCheckPath: /health

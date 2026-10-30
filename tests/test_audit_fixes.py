@@ -480,11 +480,11 @@ def test_storage_skill_graph_none_and_invalid_type_resilience(tmp_path: Path) ->
 
 
 def test_version_consistency_and_catalog_synchronization() -> None:
-    """Ensure __version__ matches v0.4.7 and all 45 tools are registered in catalog."""
+    """Ensure __version__ matches v0.4.8 and all 45 tools are registered in catalog."""
     import linkedin_mcp_zero
     from linkedin_mcp_zero.server.catalog import TOOLS, tool_help
 
-    assert linkedin_mcp_zero.__version__ == "0.4.7"
+    assert linkedin_mcp_zero.__version__ == "0.4.8"
     assert len(TOOLS) == 45
     assert tool_help("dia")["name"] == "deep_industry_analysis"
     assert tool_help("tr")["name"] == "tailor_resume"

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.8] - 2026-10-30
+### Fixed
+- Resolved all strict static type checking and IDE linter diagnostics across all 59 repository files
+- Enforced strict covariant generic typing (`Sequence[int | str]`) in database query interfaces
+- Handled dynamic AST and parser fallbacks safely without untyped callables
+
+### Added
+- Hardened online cloud hosting configurations and commands for Render, Railway, Fly.io, and GHCR Docker
+- Remote client configuration guides and SSE snippets for Claude Desktop, Cursor, VS Code, and Google Antigravity
+- Dynamic port detection and health probes (`/health`) across all cloud platforms
+
+### Security
+- Verified zero-login safe mode by default, preventing account ban exposure
+- Defense-in-depth API key authentication and sliding-window rate limiting on all HTTP endpoints
+- Non-root container execution (`UID 1001`) with read-only sandbox protection
+
 ## [0.4.7] - client integration & clean packaging
 ### Added
 - Native Google Antigravity IDE & agent framework support via `--install-client antigravity`
