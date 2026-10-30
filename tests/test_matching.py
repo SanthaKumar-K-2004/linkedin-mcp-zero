@@ -10,14 +10,14 @@ from linkedin_mcp_zero.storage.db import Storage
 
 
 @pytest.fixture
-def mock_dependencies(tmp_path) -> tuple[Storage, PublicAPIEngine]:
+def mock_dependencies(tmp_path: Path) -> tuple[Storage, MagicMock]:
     settings = Settings(data_dir=str(tmp_path))
     storage = Storage(settings)
     public = MagicMock(spec=PublicAPIEngine)
     return storage, public
 
 
-def test_semantic_score_tfidf_fallback(mock_dependencies) -> None:
+def test_semantic_score_tfidf_fallback(mock_dependencies: tuple[Storage, MagicMock]) -> None:
     storage, public = mock_dependencies
     engine = MatchingEngine(storage, public)
 
@@ -29,7 +29,7 @@ def test_semantic_score_tfidf_fallback(mock_dependencies) -> None:
 
 
 @pytest.mark.asyncio
-async def test_match_jobs_to_resume(mock_dependencies) -> None:
+async def test_match_jobs_to_resume(mock_dependencies: tuple[Storage, MagicMock]) -> None:
     storage, public = mock_dependencies
 
     # Save a resume
@@ -64,7 +64,7 @@ async def test_match_jobs_to_resume(mock_dependencies) -> None:
 
 
 @pytest.mark.asyncio
-async def test_match_jobs_to_resume_not_found(mock_dependencies) -> None:
+async def test_match_jobs_to_resume_not_found(mock_dependencies: tuple[Storage, MagicMock]) -> None:
     storage, public = mock_dependencies
     engine = MatchingEngine(storage, public)
     res = await engine.match_jobs_to_resume(999)
@@ -72,7 +72,7 @@ async def test_match_jobs_to_resume_not_found(mock_dependencies) -> None:
 
 
 @pytest.mark.asyncio
-async def test_compare_jobs(mock_dependencies) -> None:
+async def test_compare_jobs(mock_dependencies: tuple[Storage, MagicMock]) -> None:
     storage, public = mock_dependencies
 
     public.get_job_details = AsyncMock(
@@ -91,7 +91,7 @@ async def test_compare_jobs(mock_dependencies) -> None:
 
 
 @pytest.mark.asyncio
-async def test_export_jobs_json(mock_dependencies, tmp_path) -> None:
+async def test_export_jobs_json(mock_dependencies: tuple[Storage, MagicMock], tmp_path: Path) -> None:
     storage, public = mock_dependencies
     storage.exports_dir = tmp_path / "exports"
     storage.exports_dir.mkdir(parents=True, exist_ok=True)
@@ -108,7 +108,7 @@ async def test_export_jobs_json(mock_dependencies, tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_export_jobs_csv(mock_dependencies, tmp_path) -> None:
+async def test_export_jobs_csv(mock_dependencies: tuple[Storage, MagicMock], tmp_path: Path) -> None:
     storage, public = mock_dependencies
     storage.exports_dir = tmp_path / "exports"
     storage.exports_dir.mkdir(parents=True, exist_ok=True)
@@ -137,7 +137,7 @@ async def test_export_jobs_csv(mock_dependencies, tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_export_jobs_xlsx_unsupported(mock_dependencies) -> None:
+async def test_export_jobs_xlsx_unsupported(mock_dependencies: tuple[Storage, MagicMock]) -> None:
     storage, public = mock_dependencies
     engine = MatchingEngine(storage, public)
     res = await engine.export_jobs(["1"], fmt="xlsx")

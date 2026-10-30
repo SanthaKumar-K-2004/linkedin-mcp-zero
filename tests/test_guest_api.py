@@ -71,8 +71,10 @@ def test_parse_job_detail_schema() -> None:
     assert result["co"] == "Example Co"
     assert result["sal"] == "$150K-200K/yr"
     assert result["type"] == "FT"
-    assert "Python" in result["skills"]
-    assert "Kubernetes" in result["skills"]
+    skills = result.get("skills")
+    assert isinstance(skills, list)
+    assert "Python" in skills
+    assert "Kubernetes" in skills
 
 
 # Mock HTTP for Guest API tests

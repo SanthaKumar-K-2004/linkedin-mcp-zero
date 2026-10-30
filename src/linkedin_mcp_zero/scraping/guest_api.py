@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import re
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -22,17 +22,23 @@ from linkedin_mcp_zero.utils.compress import (
 from linkedin_mcp_zero.utils.errors import ParseError, UpstreamError
 from linkedin_mcp_zero.utils.telemetry import trace_span
 
-HTMLParser: Any = None
+
+def _dummy_parser(_html: str) -> Any:
+    return None
+
+
+HTMLParser: Callable[[str], Any]
 try:
     from selectolax.lexbor import LexborHTMLParser
 
     HTMLParser = LexborHTMLParser
 except (ImportError, AttributeError):
     try:
-        _mod = importlib.import_module("selectolax.parser")
-        HTMLParser = getattr(_mod, "HTMLParser", None)
+        from selectolax.parser import HTMLParser as _P
+
+        HTMLParser = _P
     except Exception:
-        HTMLParser = None
+        HTMLParser = _dummy_parser
 
 logger = structlog.get_logger()
 
@@ -254,7 +260,7 @@ def parse_search_results(html: str, now: datetime | None = None) -> list[dict[st
         url = clean_text(link.attributes.get("href", "") if link else "")
         job_id = extract_job_id(url) if url else ""
         if not job_id:
-            urn = card.attributes.get("data-entity-urn", "")
+            urn = str(card.attributes.get("data-entity-urn") or "")
             if "urn:li:jobPosting:" in urn:
                 job_id = urn.split(":")[-1]
 

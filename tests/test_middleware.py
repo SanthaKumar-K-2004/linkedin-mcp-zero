@@ -1,4 +1,5 @@
 import time
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +13,8 @@ async def test_middleware_options_request_passes() -> None:
     mock_app = AsyncMock()
     middleware = APIKeyAndRateLimitMiddleware(mock_app, api_key="secret-key")
 
-    scope = {"type": "http", "method": "OPTIONS", "headers": []}
+    headers: list[tuple[bytes, bytes]] = []
+    scope: dict[str, Any] = {"type": "http", "method": "OPTIONS", "headers": headers}
     receive = AsyncMock()
     send = AsyncMock()
 
@@ -25,7 +27,8 @@ async def test_middleware_unauthorized_missing_key() -> None:
     mock_app = AsyncMock()
     middleware = APIKeyAndRateLimitMiddleware(mock_app, api_key="secret-key")
 
-    scope = {"type": "http", "method": "GET", "headers": [], "path": "/test"}
+    headers: list[tuple[bytes, bytes]] = []
+    scope: dict[str, Any] = {"type": "http", "method": "GET", "headers": headers, "path": "/test"}
     receive = AsyncMock()
     send = AsyncMock()
 

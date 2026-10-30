@@ -9,7 +9,7 @@ from linkedin_mcp_zero.config.install import (
 )
 
 
-def test_config_path_cwd(tmp_path) -> None:
+def test_config_path_cwd(tmp_path: Path) -> None:
     path = config_path("cursor", cwd=tmp_path)
     assert path == tmp_path / ".cursor" / "mcp.json"
     (tmp_path / ".agents").mkdir()
@@ -17,7 +17,7 @@ def test_config_path_cwd(tmp_path) -> None:
     assert ag_path == tmp_path / ".agents" / "mcp_config.json"
 
 
-def test_install_client_config_new_file(tmp_path) -> None:
+def test_install_client_config_new_file(tmp_path: Path) -> None:
     target = tmp_path / "mcp_config.json"
 
     res = install_client_config(
@@ -38,7 +38,7 @@ def test_install_client_config_new_file(tmp_path) -> None:
     assert "uvx" in data["mcpServers"]["linkedin-zero"]["command"]
 
 
-def test_install_client_config_already_up_to_date(tmp_path) -> None:
+def test_install_client_config_already_up_to_date(tmp_path: Path) -> None:
     target = tmp_path / "mcp_config.json"
 
     # Install first time
@@ -58,7 +58,7 @@ def test_install_client_config_already_up_to_date(tmp_path) -> None:
     assert res.backup is None
 
 
-def test_install_client_config_backup_on_change(tmp_path) -> None:
+def test_install_client_config_backup_on_change(tmp_path: Path) -> None:
     target = tmp_path / "mcp_config.json"
     target.write_text(json.dumps({"mcpServers": {"linkedin-zero": {"command": "old-command"}}}))
 
@@ -73,7 +73,7 @@ def test_install_client_config_backup_on_change(tmp_path) -> None:
 
 
 @patch("linkedin_mcp_zero.config.install.subprocess.run")
-def test_verify_client_config_ok(mock_run: MagicMock, tmp_path) -> None:
+def test_verify_client_config_ok(mock_run: MagicMock, tmp_path: Path) -> None:
     mock_run.return_value = MagicMock(returncode=0, stdout='{"status": "ok"}', stderr="")
     target = tmp_path / "mcp_config.json"
     install_client_config(
@@ -87,7 +87,7 @@ def test_verify_client_config_ok(mock_run: MagicMock, tmp_path) -> None:
     assert any(check["name"] == "mcpServers.linkedin-zero" and check["ok"] is True for check in res.checks)
 
 
-def test_verify_client_config_missing(tmp_path) -> None:
+def test_verify_client_config_missing(tmp_path: Path) -> None:
     target = tmp_path / "missing_mcp_config.json"
     res = verify_client_config("claude-desktop", path=str(target))
     assert res.ok is False

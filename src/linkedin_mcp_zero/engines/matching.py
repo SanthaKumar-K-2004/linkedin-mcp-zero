@@ -34,7 +34,7 @@ class MatchingEngine:
             self.llm_provider = LLMProvider()
         else:
             self.llm_provider = llm_provider
-        self._transformer_model = None
+        self._transformer_model: Any | None = None
         if SENTENCE_TRANSFORMERS_AVAILABLE:
             try:
                 # Load small fast model
@@ -44,7 +44,7 @@ class MatchingEngine:
                     "Failed to initialize SentenceTransformer, falling back to TF-IDF matching",
                     error=str(e),
                 )
-        self.vector_storage = None
+        self.vector_storage: Any | None = None
         try:
             from linkedin_mcp_zero.storage.vector_db import VectorStorage
 

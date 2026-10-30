@@ -703,7 +703,7 @@ Experience: {str(resume.get("summary") or "")[:300]}"""
     ) -> dict[str, object]:
         """AI-powered salary analysis using real market data and client's LLM."""
         job = await public.get_job_details(job_id)
-        trends = {}
+        trends: dict[str, Any] = {}
         if hasattr(public, "get_job_trends"):
             trends = await public.get_job_trends(str(job.get("t") or ""), str(job.get("loc") or ""))
 

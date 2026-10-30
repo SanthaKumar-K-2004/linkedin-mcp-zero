@@ -62,7 +62,7 @@ def test_resume_pdf_missing_dependency_raises_import_error(tmp_path: Path) -> No
 
     with patch.dict("sys.modules", {"fitz": None, "docling": None}):
         with pytest.raises(ImportError) as exc_info:
-            extract_resume_text(fake_pdf, allowed_dirs=[tmp_path])
+            extract_resume_text(str(fake_pdf), allowed_dirs=[tmp_path])
         assert "PDF support requires optional dependency" in str(exc_info.value)
 
 
@@ -189,7 +189,7 @@ async def test_health_check_database_validation(tmp_path: Path) -> None:
     # Call health route handler
     client_routes = [r for r in app._additional_http_routes if getattr(r, "path", None) == "/health"]
     assert len(client_routes) == 1
-    health_endpoint = client_routes[0].endpoint
+    health_endpoint = getattr(client_routes[0], "endpoint")  # noqa: B009
 
     mock_request = Request({"type": "http", "method": "GET", "path": "/health", "headers": []})
     resp = await health_endpoint(mock_request)

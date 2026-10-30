@@ -1187,7 +1187,7 @@ def extract_resume_text(path: str, allowed_dirs: list[Path] | None = None) -> st
                 "PDF support requires optional dependency: uv sync --extra pdf or pip install pymupdf"
             ) from err
         with fitz.open(str(file)) as doc:
-            return "\n".join(page.get_text() for page in doc)
+            return str("\n".join(str(page.get_text()) for page in doc))
     raise ValueError("Unsupported resume format. Use .txt, .md, .docx, or install pdf extra.")
 
 

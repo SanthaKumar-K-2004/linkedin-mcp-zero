@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -15,7 +16,7 @@ from linkedin_mcp_zero.utils.oauth import OAuthMiddleware
 
 
 @pytest.mark.asyncio
-async def test_real_time_resume_insights_from_live_market(tmp_path) -> None:
+async def test_real_time_resume_insights_from_live_market(tmp_path: Path) -> None:
     """Verify that get_resume_insights performs real-time market research and identifies live in-demand skills."""
     storage = Storage(Settings(data_dir=str(tmp_path)))
     resume_id = storage.save_resume(
@@ -59,7 +60,7 @@ async def test_real_time_resume_insights_from_live_market(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_adaptive_domain_ecosystem_frontend_vs_backend(tmp_path) -> None:
+async def test_adaptive_domain_ecosystem_frontend_vs_backend(tmp_path: Path) -> None:
     """Verify that candidate skills dynamically infer their respective domains without hardcoded backend bias."""
     storage = Storage(Settings(data_dir=str(tmp_path)))
 
@@ -101,7 +102,7 @@ def test_expanded_skill_taxonomy() -> None:
 
 
 @pytest.mark.asyncio
-async def test_dynamic_match_reasoning_in_matching_engine(tmp_path) -> None:
+async def test_dynamic_match_reasoning_in_matching_engine(tmp_path: Path) -> None:
     """Verify that MatchingEngine produces dynamic reasoning with applicant counts and repost viability."""
     storage = Storage(Settings(data_dir=str(tmp_path)))
     resume_id = storage.save_resume(
@@ -241,7 +242,7 @@ async def test_public_api_engine_higher_level_methods() -> None:
         # Test get_company_jobs
         google_jobs = await engine.get_company_jobs(co="Google")
         assert len(google_jobs) == 2
-        assert all("Google" in j["co"] for j in google_jobs)
+        assert all("Google" in str(j.get("co", "")) for j in google_jobs)
 
         # Test search_companies
         companies = await engine.search_companies(kw="engineer")
@@ -252,12 +253,15 @@ async def test_public_api_engine_higher_level_methods() -> None:
         profile = await engine.get_company_profile(co="Google")
         assert profile["name"] == "Google"
         assert profile["open_jobs_seen"] == 2
-        assert "Remote" in profile["loc"] or "Mountain View, CA" in profile["loc"]
+        loc_str = str(profile.get("loc", ""))
+        assert "Remote" in loc_str or "Mountain View, CA" in loc_str
 
         # Test get_job_trends
         trends = await engine.get_job_trends(kw="engineer")
         assert trends["sample"] == 3
-        assert trends["top_companies"][0]["name"] == "Google"
+        top_cos = trends.get("top_companies")
+        assert isinstance(top_cos, list)
+        assert top_cos[0]["name"] == "Google"
         assert trends["remote_pct"] == 33  # 1 out of 3 is remote
 
         # Test get_industry_insights

@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from starlette.middleware import Middleware
@@ -223,7 +224,7 @@ async def test_multi_board_falls_back_to_linkedin(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(sys.modules, "jobspy", None)
 
     class FakeClient:
-        async def search_jobs(self, kw: str, loc: str = "", limit: int = 5):
+        async def search_jobs(self, kw: str, loc: str = "", limit: int = 5) -> list[dict[str, Any]]:
             return [{"id": "1", "t": kw, "loc": loc, "url": "https://example.com"}]
 
         async def close(self) -> None:
@@ -244,6 +245,7 @@ async def test_usage_tool_is_not_self_recorded(tmp_path: Path) -> None:
     )
     app = create_app(settings)
     result = await app.call_tool("get_usage_stats", {"limit": 5})
+    assert result.structured_content is not None
     assert result.structured_content["calls"] == []
     assert result.structured_content["exact_count_external_send"] is True
     assert MetricsStore(settings).recent_calls() == []

@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sqlite3
+from collections.abc import Sequence
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -160,7 +161,7 @@ class Storage:
             rows = conn.execute("SELECT id, name, kw, loc, freq FROM alerts ORDER BY id").fetchall()
         return [dict(row) for row in rows]
 
-    def selected_alerts(self, ids: list[int] | None = None) -> list[dict[str, Any]]:
+    def selected_alerts(self, ids: Sequence[int | str] | None = None) -> list[dict[str, Any]]:
         with self._connect() as conn:
             if ids:
                 try:

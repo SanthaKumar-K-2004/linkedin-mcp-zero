@@ -64,7 +64,7 @@ SAMPLE_JOB_DETAIL_HTML = """
 """
 
 
-def test_parse_search_results_deduplication():
+def test_parse_search_results_deduplication() -> None:
     # Verify no duplicates are returned even if multiple CSS selectors match the same card
     results = parse_search_results(SAMPLE_DUPLICATE_HTML)
     assert len(results) == 2, f"Expected 2 unique jobs, got {len(results)}"
@@ -72,7 +72,7 @@ def test_parse_search_results_deduplication():
     assert ids == ["111111", "222222"]
 
 
-def test_parse_search_results_rich_fields():
+def test_parse_search_results_rich_fields() -> None:
     results = parse_search_results(SAMPLE_DUPLICATE_HTML)
     job1 = results[0]
     assert job1["id"] == "111111"
@@ -84,7 +84,7 @@ def test_parse_search_results_rich_fields():
     assert "₹6,00,000" in str(job1["sal"])
 
 
-def test_parse_job_detail_applicants():
+def test_parse_job_detail_applicants() -> None:
     detail = parse_job_detail(SAMPLE_JOB_DETAIL_HTML, "111111")
     assert detail["id"] == "111111"
     assert detail["t"] == "Senior Python Engineer"
@@ -94,7 +94,7 @@ def test_parse_job_detail_applicants():
 
 
 @pytest.mark.asyncio
-async def test_tool_parameter_descriptions():
+async def test_tool_parameter_descriptions() -> None:
     app = create_app()
     tools = await app.list_tools()
     tools_by_name = {t.name: t for t in tools}

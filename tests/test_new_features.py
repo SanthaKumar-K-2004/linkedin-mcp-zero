@@ -67,7 +67,7 @@ async def test_app_resources_and_prompts() -> None:
     assert any("saved" in r for r in resources)
     assert any("engines" in r for r in resources)
 
-    templates = [str(t.uri_template) for t in await app.list_resource_templates()]
+    templates = [t.uri_template for t in await app.list_resource_templates()]
     assert any("trending" in t for t in templates)
     assert any("summary" in t for t in templates)
     assert any("profile" in t for t in templates)
@@ -148,7 +148,8 @@ async def test_deep_industry_analysis_progress() -> None:
         mock_detail.return_value = {"id": "123", "t": "Software Engineer", "co": "TestCo", "desc": "Requirements"}
 
         tool = next(t for t in await app.list_tools() if t.name == "deep_industry_analysis")
-        result = await tool.fn("Software", mock_ctx)
+        tool_fn = getattr(tool, "fn")  # noqa: B009
+        result = await tool_fn("Software", mock_ctx)
 
         assert "Analyzed 1 jobs" in result["summary"]
         mock_ctx.report_progress.assert_called_once_with(

@@ -136,7 +136,7 @@ def verify_client_config(
             output = (completed.stdout or completed.stderr or "").strip()
             list_ok = completed.returncode == 0 and SERVER_NAME in output
             list_detail = output or f"exit {completed.returncode}"
-        claude_checks = [
+        claude_checks: list[dict[str, object]] = [
             {"name": "claude_cli_found", "ok": bool(claude), "detail": claude or "not found"},
             {
                 "name": "claude_mcp_list_contains_linkedin_zero",

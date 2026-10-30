@@ -48,7 +48,7 @@ def test_parse_search_results_removes_duplicates() -> None:
 
 
 def test_rank_by_title_relevance_is_stable_and_never_drops() -> None:
-    rows = [
+    rows: list[dict[str, object]] = [
         {"id": "1", "t": "Lead Product Engineer"},
         {"id": "2", "t": "Technical Support Engineer"},
         {"id": "3", "t": "Support Engineer"},
@@ -123,7 +123,7 @@ async def test_429_honors_retry_after_then_succeeds() -> None:
     async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
 
-    with patch.object(guest_api.asyncio, "sleep", fake_sleep):
+    with patch("linkedin_mcp_zero.scraping.guest_api.asyncio.sleep", fake_sleep):
         response = await polite_get(client, "https://example.test/x")
     assert response.status_code == 200
     assert sleeps == [7.0]

@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,13 +9,13 @@ from linkedin_mcp_zero.storage.db import Storage
 
 
 @pytest.fixture
-def mock_storage(tmp_path) -> Storage:
+def mock_storage(tmp_path: Path) -> Storage:
     settings = Settings(data_dir=str(tmp_path))
     storage = Storage(settings)
     return storage
 
 
-def test_resume_path_validation_allowed_dirs(tmp_path, mock_storage) -> None:
+def test_resume_path_validation_allowed_dirs(tmp_path: Path, mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
 
     # Create allowed file
@@ -27,7 +28,7 @@ def test_resume_path_validation_allowed_dirs(tmp_path, mock_storage) -> None:
     assert "Python" in res["skills"]
 
 
-def test_resume_path_validation_disallowed_dirs(mock_storage) -> None:
+def test_resume_path_validation_disallowed_dirs(mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     with pytest.raises(ValueError) as excinfo:
         # File in root which is not allowed
@@ -35,13 +36,13 @@ def test_resume_path_validation_disallowed_dirs(mock_storage) -> None:
     assert "is outside allowed directories" in str(excinfo.value)
 
 
-def test_resume_not_found(tmp_path, mock_storage) -> None:
+def test_resume_not_found(tmp_path: Path, mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     with pytest.raises(FileNotFoundError):
         engine.analyze_resume(str(tmp_path / "nonexistent.txt"))
 
 
-def test_resume_docx_parsing(tmp_path, mock_storage) -> None:
+def test_resume_docx_parsing(tmp_path: Path, mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     docx_file = tmp_path / "resume.docx"
 
@@ -62,7 +63,7 @@ def test_resume_docx_parsing(tmp_path, mock_storage) -> None:
         assert "JavaScript" in res["skills"]
 
 
-def test_resume_pdf_parsing(tmp_path, mock_storage) -> None:
+def test_resume_pdf_parsing(tmp_path: Path, mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     pdf_file = tmp_path / "resume.pdf"
     pdf_file.touch()
@@ -86,7 +87,7 @@ def test_resume_pdf_parsing(tmp_path, mock_storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_resume_insights(mock_storage) -> None:
+async def test_resume_insights(mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     # Save a dummy resume in DB
     resume_id = mock_storage.save_resume(
@@ -104,8 +105,9 @@ async def test_resume_insights(mock_storage) -> None:
 
 
 @pytest.mark.asyncio
-async def test_resume_insights_not_found(mock_storage) -> None:
+async def test_resume_insights_not_found(mock_storage: Storage) -> None:
     engine = ResumeEngine(mock_storage)
     insights = await engine.get_resume_insights(9999)
     assert "error" in insights
     assert insights["error"] == "resume_not_found"
+
