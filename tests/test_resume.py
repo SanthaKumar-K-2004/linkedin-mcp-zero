@@ -110,4 +110,3 @@ async def test_resume_insights_not_found(mock_storage: Storage) -> None:
     insights = await engine.get_resume_insights(9999)
     assert "error" in insights
     assert insights["error"] == "resume_not_found"
-
